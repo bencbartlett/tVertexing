@@ -1,0 +1,11 @@
+External dependencies:
+	Global:
+		Numpy is used for just about everything. In case you're living under a rock and don't have this, see: http://www.scipy.org/install.html
+	EDMProcessor.py:
+		CMS framework. Must be run from cmsRun while running cmsenv.
+		ROOT. I used ROOT 5, so it's not tested on 6 yet, but here are installation instructions: https://root.cern.ch/drupal/content/installing-root-source. Note that this must be configured with PyROOT enabled.
+	RootProcessor.py:
+		CMS framework like on lxplus, or the FWLite framework properly configured. Expect an essay on how to get that shit set up. This was by far the most frustrating thing in building this algorithm, and is why I convert everything to numpy arrays instead of working with ROOT in the proper frameworks. Also, I'm fairly sure numpy arrays are faster, although they also seem to be larger.
+		ROOT. Again: https://root.cern.ch/drupal/content/installing-root-source
+	Plotter.py:
+		ImageMagick for gif rendering. To install: "sudo port install ImageMagick"
