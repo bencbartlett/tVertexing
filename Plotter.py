@@ -12,11 +12,16 @@
 #####################################################################################################|
 
 # Importations
-import numpy as np
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D, art3d
-from Misc import progressbar
 import os
+import numpy as np
+import matplotlib
+import matplotlib.pyplot as plt
+import matplotlib.mlab as mlab
+import warnings
+from mpl_toolkits.mplot3d import Axes3D, art3d
+from matplotlib.offsetbox import TextArea, VPacker, AnnotationBbox
+from Misc import progressbar
+from scipy.stats import norm
 
 # Constants
 ECalRadius = 129.0                                                                                  #|Radius of ECal in cm
@@ -162,7 +167,35 @@ def showerAnimator(hits, title, eventNo, clusterID=-1, delete=False,
     if delete:
         shutil.rmtree(path+"/frames")
 
+def tVertexErrorHist(diffs, nEvents, quiet=True):
+    '''
+    Usage: tVertexErrorHist(differences, number of counts, quiet=True)
+    '''
+    absDiffs = np.absolute(diffs)
+    fig, ax = plt.subplots()                                                                        #|Set up graph
+    n, bins, patches = ax.hist(diffs, normed = True, bins = 50)
+    (mu, sigma)      = norm.fit(diffs)                                                              #|Fit curve
+    fitline          = mlab.normpdf(bins, mu, sigma)
+    line             = ax.plot(bins, fitline, "r--", linewidth = 2)
+    ax.set_xlabel("Error (cm)") 
+    ax.set_ylabel("Counts (normalized from $\Sigma=%i$)" % nEvents)
+    ax.set_title("tVertexed $z$ - genVertex $z$")
 
+    string =  "$\mu$ = %.3fcm        $\sigma$ = %.3fcm \n" % (mu, sigma)                            #|Print out info box 
+    string += "Average error magnitude: %.3fcm \n" % np.mean(absDiffs)
+    string += "Median error magnitude:  %.3fcm \n" % np.median(absDiffs)
+    string += "Maximum error magnitude: %.3fcm \n" % np.max(absDiffs)
+    string += "Minimum error magnitude: %.3fcm \n" % np.min(absDiffs)
+
+    font = {'family' : 'monospace',
+        'weight' : 'bold',
+        'size'   : 10}
+    matplotlib.rc('font', **font)                                                                   #|Changes fond to monospace 
+
+    ax.text(.02, .99, string, transform=ax.transAxes, verticalalignment='top')
+    if not quiet: print string 
+
+    plt.show()
 
 
 if __name__ == '__main__':                                                                          #| Test stuff
