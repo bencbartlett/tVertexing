@@ -37,7 +37,7 @@ if(len(sys.argv)<2):                                                            
     print '\n Usage: cmsRun EDMProcessor.py input [outputfile]\n'                                   #|where tag can be any sub-directory under /store/cmst3/group/hgcal/CMSSW
     sys.exit()                                                                                      #|or any upgrade relval sample (may need tweaking for new releases...)
 input2process=sys.argv[2]
-outputName='ProcessedEDM/ProcessedEDM.root'
+outputName='../ProcessedEDM/ProcessedEDM.root'
 if(len(sys.argv)>3):
     outputName=sys.argv[3]
 print '[runHGCROIAnalyzer] processing from %s and output name is %s'%(input2process,outputName)

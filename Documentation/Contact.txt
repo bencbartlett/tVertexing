@@ -1,0 +1,1 @@
+If you are some poor person faced with the unenviable task of reading through my code, look through the documentation I've written, but if you still don't understand something, feel free to contact me. If I'm still at Caltech by the time you read this, I'm at bartlett@caltech.edu, and if not, you can use my personal email at benjamincbartlett@gmail.com.

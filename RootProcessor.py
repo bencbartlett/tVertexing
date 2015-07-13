@@ -7,8 +7,8 @@
 #     ben.bartlett@cern.ch                               (since numpy is easier to work with)       #
 #     benjamincbartlett@gmail.com                      Notes:                                       #
 #                                                        After some fidgeting, must be run on       #
-# Created:       6 June 2015                             a CERN lxplus machine, as it requires      #
-# Last modified: 8 June 2015 			     			 libFWCoreFWLite.so and AutoLibraryLoader   #
+# Created:       6 July 2015                             a CERN lxplus machine, as it requires      #
+# Last modified: 8 July 2015 			     			 libFWCoreFWLite.so and AutoLibraryLoader   #
 #####################################################################################################
 
 '''
@@ -17,6 +17,7 @@ Usage (in cmsenv): RootProcessor.py <[file or directory]> <[options]>
 See parser for more details.
 '''
 c = 29.9792458                                                                                      #|Lightspeed in cm/ns
+
 # Argument parser
 import argparse
 parser = argparse.ArgumentParser(description = 
@@ -57,6 +58,46 @@ ROOT.AutoLibraryLoader.enable()
 
 # Main processing function
 def process(f, outdir):
+	'''
+	Usage: process(fileName, writeDirectory)
+
+	Takes a HGCROI-formatted .root file and converts it to a list of structured numpy arrays.
+
+	The format is as follows:
+		List of events
+			For each event, array for various data structures (RecHits, Clusters, etc.).
+			Unfortunately, there is no way to do recursive recarrays, so we use the following
+			organisation method:
+			eventArray[0]=RecHits
+			eventArray[1]=Clusters
+			eventArray[2]=ROIs
+			eventArray[2]=Vertices
+			eventArray[3]=GenVertex
+				For each data structure array, recarray of properties
+
+	For example:
+		(Index 0 = Event 0)
+			(Index 0 = RecHits)
+				'x' -> [1.23, 4.25, ...]
+				'y' -> [5.24, 6.42, ...]
+				...
+				'clusterID' -> [1, 2, 1, 1, ...]
+			(Index 1 = Clusters)
+				'centerX' -> [3.21, 2.56, ...]
+				...
+			...
+		(Index 1 = Event 1)
+			(Index 0 = RecHits)
+				...
+			(Index 1 = Clusters)
+				...
+			...
+		...
+
+	So, for example, to access the array of x positions in the RecHits of the 7th event,
+	you would use:
+		xpos = Data[7][0]['x']
+	'''
 	print "Processing file: " + str(f) + "..."                                                                                                                
 	outArray   = []                                           
 	fIn        = ROOT.TFile.Open(f)
@@ -65,31 +106,164 @@ def process(f, outdir):
 	pbar       = progressbar("Processing &count& events:", numentries) 
 	pbar.start()                                                
 	for i in xrange(0, numentries): 
-		# print "-> Processing event "+str(i)+"/"+str(numentries)+"..."
 		tree.GetEntry(i) 
-		x         = []
-		y         = []
-		z         = []
-		t         = []
-		correctT  = []
-		en        = []
-		clusterID = []                                                          
-		for hit in tree.RecHits:                                                                    #|Modify properties you want to extract at will.
-			x.append(hit.x_)                                                                        #|Loops over files, extracting the
-			y.append(hit.y_)                                                                        #|xyzt data from rechits in each file
-			z.append(hit.z_)                                                                        #|and saving each rechit array
-			t.append(hit.t_)                                                                        #|to a .npy file for later use.
-			correctT.append(hit.t_ + np.sqrt(hit.x_**2 + hit.y_**2 + hit.z_**2)/c)
-			en.append(hit.en_)
-			clusterID.append(hit.clustId_)
-		outArray.append(np.core.records.fromarrays([x,y,z,t,en,correctT,clusterID],
-						names = 'x,y,z,t,en,correctT,clusterID'))                                   #|Converts to a 2D numpy structured array indexed by event number
+		eventArray = []
+		names      = ""
+		# RecHits
+		RecHits    = True                                                                           #|Store rechits
+		x          = []                                                                             #|Position of the rechit
+		y          = []
+		z          = []
+		t          = []
+		tofT   	   = []                                                                             #|Time-of-flight corrected time data
+		en         = []                                                                             #|Energy 
+		clusterID  = []                                                                             #|What cluster the hit belongs to
+		# Clusters
+		Clusters   = True                                                                           #|Store clusters
+		center_x_  = []                                                                             #|Center of the cluster (energy weighted)
+		center_y_  = []
+		center_z_  = []
+		axis_x_    = []                                                                             #|Direction the cluster is pointing (looking back at the beamline from the cluster)
+		axis_y_    = []
+		axis_z_    = []
+		ev_1_      = []                                                                             #|Eigenvalues from principal component analysis
+		ev_2_      = []
+		ev_3_      = []
+		clusteren  = []                                                                             #|Energy
+		clustereta = []                                                                             #|Eta
+		clusterphi = []                                                                             #|Phi
+		slfClustID = []																				#|Self-referencing cluster ID
+		clusterroi = []                                                                             #|ROI ID for the cluster
+		# ROIs
+		ROIs       = True 
+		roieta     = [] #|Energy-weighted eta
+		roiphi     = [] #|Energy-weighted phi
+		roipt      = [] #|Energy-weighted pt
+		roimass    = []
+		roiarea    = []
+		roigenpt   = []
+		roigeneta  = []
+		roigenphi  = []
+		roigenmass = []
+		roigenarea = []
+		roistablex = []
+		roistabley = []
+		roistablez = []
+		# Vertices
+		Vertices   = False                                                                          #|Store vertices, won't work for photon gun
+		vertex_x_  = []                                                                             #|Reconstructed vertex location using tracker 
+		vertex_y_  = []
+		vertex_z_  = []
+		# Generated vertices ("true" vertices)
+		GenVert    = True                                                                           #|Store generated vertices
+		gen_x_     = []                                                                             #|Actual vertex location from simulated event
+		gen_y_     = []
+		gen_z_     = []
+
+		if RecHits:
+			for hit in tree.RecHits:                                                                #|Modify properties you want to extract at will.
+				x        .append(hit.x_)                                                            #|Loops over files, extracting the xyzt data from rechits in each file and saving each rechit array to a .npy file for later use.
+				y        .append(hit.y_)                                                                        
+				z        .append(hit.z_)                                                                        
+				t        .append(hit.t_)                                                                        
+				tofT     .append(hit.t_ + np.sqrt(hit.x_**2 + hit.y_**2 + hit.z_**2)/c)
+				en       .append(hit.en_)
+				clusterID.append(hit.clustId_)
+			recHitsArray = np.core.records.fromarrays([x,y,z,t,en,tofT,clusterID],
+											  names = 'x,y,z,t,en,tofT,clusterID')                  #|Form rechit array
+			eventArray.append(recHitsArray)                                                         #|Append to event array
+			names += 'RecHits'                                                                      #|Add to names list
+		else:
+			eventArray.append([])                                                                   #|This is to keep the index of the arrays the same
+
+		clusterindex = 0
+		if Clusters:
+			for cluster in tree.Clusters:
+				center_x_ .append(cluster.center_x_)
+				center_y_ .append(cluster.center_y_)
+				center_z_ .append(cluster.center_z_)
+				axis_x_   .append(cluster.axis_x_)
+				axis_y_   .append(cluster.axis_y_)
+				axis_z_   .append(cluster.axis_z_)
+				ev_1_     .append(cluster.ev_1_)
+				ev_2_     .append(cluster.ev_2_)
+				ev_3_     .append(cluster.ev_3_)
+				clusteren .append(cluster.en_)
+				clustereta.append(cluster.eta_)
+				clusterphi.append(cluster.phi_)
+				slfClustID.append(clusterindex)
+				clusterroi.append(cluster.roiidx_)
+				clusterindex += 1
+			clusterArray = np.core.records.fromarrays([center_x_, center_y_, center_z_,
+													   axis_x_, axis_y_, axis_z_,
+													   ev_1_, ev_2_, ev_3_, clusteren, clustereta,
+													   clusterphi, slfClustID, clusterroi],
+													   names = 'centerX,centerY,centerZ,\
+													   			axisX,axisY,axisZ,ev1,ev2,ev3,en,\
+													   			eta,phi,clusterID,ROI')             #|Form array for clusters
+			eventArray.append(clusterArray)                                                         #|Append to event array
+			names += ',Clusters'
+		else:
+			eventArray.append([])                                                                   #|This is to keep the index of the arrays the same
+
+		if ROIs:
+			for ROI in tree.ROIs:
+				roipt     .append(ROI.pt_)
+				roieta    .append(ROI.eta_)
+				roiphi    .append(ROI.phi_)
+				roimass   .append(ROI.mass_)
+				roiarea   .append(ROI.area_)
+				roigenpt  .append(ROI.genpt_)
+				roigeneta .append(ROI.geneta_)
+				roigenphi .append(ROI.genphi_)
+				roigenmass.append(ROI.genmass_)
+				roigenarea.append(ROI.genarea_)
+				roistablex.append(ROI.stablex_)
+				roistabley.append(ROI.stabley_)
+				roistablez.append(ROI.stablez_)
+			ROIArray = np.core.records.fromarrays([roipt, roieta, roiphi, roimass, roiarea,
+												   roigenpt, roigeneta, roigenphi, roigenmass,
+												   roigenarea, roistablex, roistabley, roistablez],
+												   names = 'pt,eta,phi,mass,area,getpt,geneta,\
+												   			getphi,genarea,stablex,stabley,stablez')
+			eventArray.append(ROIArray)
+			names += ',ROIs'
+		else:
+			eventArray.append([])
+
+		if Vertices:
+			for vertex in tree.Vertices:
+				vertex_x_.append(vertex.x_)
+				vertex_y_.append(vertex.y_)
+				vertex_z_.append(vertex.z_)
+			vertexArray = np.core.records.fromarrays([vertex_x_, vertex_y_, vertex_z_],
+													  names='x,y,z')
+			eventArray.append(vertexArray)                                                          #|Vertices array
+			names += ',Vertices'
+		else:
+			eventArray.append([])                                                                   #|This is to keep the index of the arrays the same
+
+		if GenVert:
+			gen_x_.append(tree.GenVertex.x())                                                       #|GenVertex is not iterable like the other classes, since there is only one per event.
+			gen_y_.append(tree.GenVertex.y())
+			gen_z_.append(tree.GenVertex.z())
+			genVertexArray = np.core.records.fromarrays([gen_x_, gen_y_, gen_z_],
+													  	 names='x,y,z')
+			eventArray.append(genVertexArray)                                                       #|Generated vertices array
+			names += ',GenVertex'
+		else:
+			eventArray.append([])                                                                   #|This is to keep the index of the arrays the same
+
+		# Combine arrays for single event and append to outArray
+		outArray.append(eventArray)                                                                 #|Converts to a 2D numpy structured array indexed by event number
 		pbar.update(i)
-	filename = str(f[:-5]) + ".npy"
+
+	# Finish up and save array to file
 	pbar.finish()
-	filename = filename.split("/")[-1] #|Removes directory prefixes
-	print "Writing file " + filename + "..."
+	filename = str(f[:-5]) + ".npy" 																#|Replace .root with .npy
+	filename = filename.split("/")[-1]                                                              #|Removes directory prefixes
 	filepath = outdir+filename
+	print "Writing file " + os.path.abspath(filepath) + "..."
 	np.save(filepath, outArray)
 
 

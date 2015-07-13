@@ -1,0 +1,42 @@
+{\rtf1\ansi\ansicpg1252\cocoartf1348\cocoasubrtf170
+{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\listtable{\list\listtemplateid1\listhybrid{\listlevel\levelnfc23\levelnfcn23\leveljc0\leveljcn0\levelfollow0\levelstartat1\levelspace360\levelindent0{\*\levelmarker \{disc\}}{\leveltext\leveltemplateid1\'01\uc0\u8226 ;}{\levelnumbers;}\fi-360\li720\lin720 }{\listlevel\levelnfc23\levelnfcn23\leveljc0\leveljcn0\levelfollow0\levelstartat1\levelspace360\levelindent0{\*\levelmarker \{hyphen\}}{\leveltext\leveltemplateid2\'01\uc0\u8259 ;}{\levelnumbers;}\fi-360\li1440\lin1440 }{\listlevel\levelnfc23\levelnfcn23\leveljc0\leveljcn0\levelfollow0\levelstartat1\levelspace360\levelindent0{\*\levelmarker \{hyphen\}}{\leveltext\leveltemplateid3\'01\uc0\u8259 ;}{\levelnumbers;}\fi-360\li2160\lin2160 }{\listlevel\levelnfc23\levelnfcn23\leveljc0\leveljcn0\levelfollow0\levelstartat1\levelspace360\levelindent0{\*\levelmarker \{hyphen\}}{\leveltext\leveltemplateid4\'01\uc0\u8259 ;}{\levelnumbers;}\fi-360\li2880\lin2880 }{\listname ;}\listid1}}
+{\*\listoverridetable{\listoverride\listid1\listoverridecount0\ls1}}
+\margl1440\margr1440\vieww18620\viewh11180\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural
+
+\f0\fs36 \cf0 External dependencies:
+\fs24 \
+\pard\tx220\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\li720\fi-720\pardirnatural
+\ls1\ilvl0\cf0 {\listtext	\'95	}Global:\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\li1440\fi-1440\pardirnatural
+\ls1\ilvl1\cf0 {\listtext	\uc0\u8259 	}Numpy is used for just about everything. In case you're living under a rock and don't have this, see: {\field{\*\fldinst{HYPERLINK "http://www.scipy.org/install.html"}}{\fldrslt http://www.scipy.org/install.html}}\
+{\listtext	\uc0\u8259 	}root_numpy is used sometimes for converting TTrees to structured arrays. Anything using this package on lxplus must be run in a virtual environment. You can see how to set one up here: {\field{\*\fldinst{HYPERLINK "http://rootpy.github.io/root_numpy/start.html#try-root-numpy-on-cern-s-lxplus"}}{\fldrslt http://rootpy.github.io/root_numpy/start.html#try-root-numpy-on-cern-s-lxplus}}. \
+\pard\tx220\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\li720\fi-720\pardirnatural
+\ls1\ilvl0\cf0 {\listtext	\'95	}Plotter.py:\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\li1440\fi-1440\pardirnatural
+\ls1\ilvl1\cf0 {\listtext	\uc0\u8259 	}ImageMagick for gif rendering. To install (on Mac): "sudo port install ImageMagick\'94. For other systems, see {\field{\*\fldinst{HYPERLINK "http://www.imagemagick.org/script/binary-releases.php"}}{\fldrslt http://www.imagemagick.org/script/binary-releases.php}}\
+\pard\tx220\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\li720\fi-720\pardirnatural
+\ls1\ilvl0\cf0 {\listtext	\'95	}DataProcessors:\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\li1440\fi-1440\pardirnatural
+\ls1\ilvl1\cf0 {\listtext	\uc0\u8259 	}EDMProcessor.py:\
+\pard\tx1660\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\li2160\fi-2160\pardirnatural
+\ls1\ilvl2\cf0 {\listtext	\uc0\u8259 	}CMS framework. Must be run from cmsRun while running cmsenv.\
+{\listtext	\uc0\u8259 	}ROOT. I used ROOT 5, so it's not tested on 6 yet, but here are installation instructions: {\field{\*\fldinst{HYPERLINK "https://root.cern.ch/drupal/content/installing-root-source"}}{\fldrslt https://root.cern.ch/drupal/content/installing-root-source}}. Note that this must be configured with PyROOT enabled.\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\li1440\fi-1440\pardirnatural
+\ls1\ilvl1\cf0 {\listtext	\uc0\u8259 	}RootProcessor.py:\
+\pard\tx1660\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\li2160\fi-2160\pardirnatural
+\ls1\ilvl2\cf0 {\listtext	\uc0\u8259 	}CMS framework like on lxplus, or the FWLite framework properly configured. Expect an essay on how to get that shit set up. This was by far the most frustrating thing in building this algorithm, and is why I convert everything to numpy arrays instead of working with ROOT in the proper frameworks. Also, I'm fairly sure numpy arrays are faster, although they also seem to be larger.\
+{\listtext	\uc0\u8259 	}ROOT. Again: {\field{\*\fldinst{HYPERLINK "https://root.cern.ch/drupal/content/installing-root-source"}}{\fldrslt https://root.cern.ch/drupal/content/installing-root-source}}\
+\pard\tx220\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\li720\fi-720\pardirnatural
+\ls1\ilvl0\cf0 {\listtext	\'95	}Libraries:\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\li1440\fi-1440\pardirnatural
+\ls1\ilvl1\cf0 {\listtext	\uc0\u8259 	}Animator5D:\
+\pard\tx1660\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\li2160\fi-2160\pardirnatural
+\ls1\ilvl2\cf0 {\listtext	\uc0\u8259 	}__init__.py:\
+\pard\tx2380\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\li2880\fi-2880\pardirnatural
+\ls1\ilvl3\cf0 {\listtext	\uc0\u8259 	}Matplotlib\
+{\listtext	\uc0\u8259 	}Numpy\
+{\listtext	\uc0\u8259 	}ImageMagick for combining the frames into an animated gif. If you use something with this package, you can use \'93renderframes=False\'94 to just render the frames but not combine them. There are plenty of online gif combiners you can use instead, they\'92re just slower.\
+}
