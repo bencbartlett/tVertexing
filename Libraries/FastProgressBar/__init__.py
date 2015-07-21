@@ -1,44 +1,35 @@
-#!/usr/bin/python
-# -*- coding: utf-8 -*-
 #
-# progressbar  - Text progress bar library for Python.
-# Copyright (c) 2005 Nilton Volpato
+# Simplified progressbar implementation
+# Ben Bartlett
 #
-# This library is free software; you can redistribute it and/or
-# modify it under the terms of the GNU Lesser General Public
-# License as published by the Free Software Foundation; either
-# version 2.1 of the License, or (at your option) any later version.
+# Disclaimer: I wrote almost none of this code; the necessary components have been consolidated from 
+# https://code.google.com/p/python-progressbar/
 #
-# This library is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# Lesser General Public License for more details.
+# Since I've found almost all processing progressbars require the same small set of capabilities,
+# I've extracted the necessary ones from the above package and put them into one file.
+# Implementing the progressbar, because it is premade, is also much faster
 #
-# You should have received a copy of the GNU Lesser General Public
-# License along with this library; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
+'''Usage: 
+   To make:   pbar = progressbar("Title", maxCount)
+              Parses at most one instance of "&count" to be like "12 of 16".
+   To start:  pbar.start()
+   To update: pbar.update(currentCount)
+   To finish: pbar.finish()
 
-'''Text progress bar library for Python.
+   Looks like:
 
-A text progress bar is typically used to display the progress of a long
-running operation, providing a visual cue that processing is underway.
+   Rendering 32 of 33 frames: 99% [#################################] ETA: 0:00:03
 
-The ProgressBar class manages the current progress, and the format of the line
-is given by a number of widgets. A widget is an object that may display
-differently depending on the state of the progress bar. There are three types
-of widgets:
- - a string, which always shows itself
+   Automatically adjusts to fill terminal window.
 
- - a ProgressBarWidget, which may return a different value every time its
-   update method is called
+   Place "FastProgressBar" folder in directory of file using it. Import with:
 
- - a ProgressBarWidgetHFill, which is like ProgressBarWidget, except it
-   expands to fill the remaining width of the line.
+   from FastProgressBar import progressbar 
 
-The progressbar module is very easy to use, yet very powerful. It will also
-automatically enable features like auto-resizing when the system supports it.
-'''
+   Then use.
+   '''
+
 
 from __future__ import division
 
@@ -65,7 +56,6 @@ if not hasattr(__builtins__, 'next'):
             # Fallback in case of a "native" iterator
             return iter.next()
 
-
 # Python < 2.5 does not have "any"
 if not hasattr(__builtins__, 'any'):
    def any(iterator):
@@ -74,13 +64,155 @@ if not hasattr(__builtins__, 'any'):
 
       return False
 
-from widgets import *
+try:
+    from abc import ABCMeta, abstractmethod
+except ImportError:
+    AbstractWidget = object
+    abstractmethod = lambda fn: fn
+else:
+    AbstractWidget = ABCMeta('AbstractWidget', (object,), {})
 
 
-__author__ = 'Nilton Volpato'
-__author_email__ = 'first-name dot last-name @ gmail.com'
-__date__ = '2011-05-14'
-__version__ = '2.3'
+def format_updatable(updatable, pbar):
+    if hasattr(updatable, 'update'): return updatable.update(pbar)
+    else: return updatable
+
+
+class Widget(AbstractWidget):
+    '''The base class for all widgets
+
+    The ProgressBar will call the widget's update value when the widget should
+    be updated. The widget's size may change between calls, but the widget may
+    display incorrectly if the size changes drastically and repeatedly.
+
+    The boolean TIME_SENSITIVE informs the ProgressBar that it should be
+    updated more often because it is time sensitive.
+    '''
+
+    TIME_SENSITIVE = False
+    __slots__ = ()
+
+    @abstractmethod
+    def update(self, pbar):
+        '''Updates the widget.
+
+        pbar - a reference to the calling ProgressBar
+        '''
+
+
+class WidgetHFill(Widget):
+    '''The base class for all variable width widgets.
+
+    This widget is much like the \\hfill command in TeX, it will expand to
+    fill the line. You can use more than one in the same line, and they will
+    all have the same width, and together will fill the line.
+    '''
+
+    @abstractmethod
+    def update(self, pbar, width):
+        '''Updates the widget providing the total width the widget must fill.
+
+        pbar - a reference to the calling ProgressBar
+        width - The total width the widget must fill
+        '''
+
+
+class Timer(Widget):
+    'Widget which displays the elapsed seconds.'
+
+    __slots__ = ('format',)
+    TIME_SENSITIVE = True
+
+    def __init__(self, format='Elapsed Time: %s'):
+        self.format = format
+
+    @staticmethod
+    def format_time(seconds):
+        'Formats time as the string "HH:MM:SS".'
+
+        return str(datetime.timedelta(seconds=int(seconds)))
+
+
+    def update(self, pbar):
+        'Updates the widget to show the elapsed time.'
+
+        return self.format % self.format_time(pbar.seconds_elapsed)
+
+
+class ETA(Timer):
+    'Widget which attempts to estimate the time of arrival.'
+
+    TIME_SENSITIVE = True
+
+    def update(self, pbar):
+        'Updates the widget to show the ETA or total time when finished.'
+
+        if pbar.currval == 0:
+            return 'ETA:  --:--:--'
+        elif pbar.finished:
+            return 'Time: %s' % self.format_time(pbar.seconds_elapsed)
+        else:
+            elapsed = pbar.seconds_elapsed
+            eta = elapsed * pbar.maxval / pbar.currval - elapsed
+            return 'ETA:  %s' % self.format_time(eta)
+
+
+
+class Percentage(Widget):
+    'Displays the current percentage as a number with a percent sign.'
+
+    def update(self, pbar):
+        return '%3d%%' % pbar.percentage()
+
+
+class SimpleProgress(Widget):
+    'Returns progress as a count of the total (e.g.: "5 of 47")'
+
+    __slots__ = ('sep',)
+
+    def __init__(self, sep=' of '):
+        self.sep = sep
+
+    def update(self, pbar):
+        return '%d%s%d' % (pbar.currval, self.sep, pbar.maxval)
+
+
+class Bar(WidgetHFill):
+    'A progress bar which stretches to fill the line.'
+
+    __slots__ = ('marker', 'left', 'right', 'fill', 'fill_left')
+
+    def __init__(self, marker='#', left='|', right='|', fill=' ',
+                 fill_left=True):
+        '''Creates a customizable progress bar.
+
+        marker - string or updatable object to use as a marker
+        left - string or updatable object to use as a left border
+        right - string or updatable object to use as a right border
+        fill - character to use for the empty part of the progress bar
+        fill_left - whether to fill from the left or the right
+        '''
+        self.marker = marker
+        self.left = left
+        self.right = right
+        self.fill = fill
+        self.fill_left = fill_left
+
+
+    def update(self, pbar, width):
+        'Updates the progress bar and its subcomponents'
+
+        left, marker, right = (format_updatable(i, pbar) for i in
+                               (self.left, self.marker, self.right))
+
+        width -= len(left) + len(right)
+        # Marker must *always* have length of 1
+        marker *= int(pbar.currval / pbar.maxval * width)
+
+        if self.fill_left:
+            return '%s%s%s' % (left, marker.ljust(width, self.fill), right)
+        else:
+            return '%s%s%s' % (left, marker.rjust(width, self.fill), right)
 
 
 class UnknownLength: pass
@@ -339,3 +471,57 @@ class ProgressBar(object):
         self.fd.write('\n')
         if self.signal_set:
             signal.signal(signal.SIGWINCH, signal.SIG_DFL)
+
+
+
+
+
+
+##################################################################################################################
+
+
+
+
+
+
+def progressbar(title, max):
+    '''Usage: 
+       To make:   pbar = pbar("Title", maxCount)
+                  Parses at most one instance of "&count" to be like "12 of 16".
+       To start:  pbar.start()
+       To update: pbar.update(currentCount)
+       To finish: pbar.finish()
+
+       Looks like:
+
+       Rendering 32 of 33 frames: 99% [#################################] ETA: 0:00:03
+
+       Automatically adjusts to fill terminal window.
+       '''
+    if "&count&" in title: #|&count& can be used to keep an updating queue list
+        title = title.split("&count&")
+        widgets = [title[0], SimpleProgress(), title[1], Percentage(), ' ',
+                   Bar(marker='#',left='[',right=']'), ' ', ETA()]
+    else:
+        widgets = [title, ' ', Percentage(), ' ',
+                   Bar(marker='#',left='[',right=']'), ' ', ETA()]
+    pbar = ProgressBar(widgets=widgets, maxval= max)
+    return pbar
+
+
+
+
+if __name__ == '__main__':
+    # Demonstrate
+    pbar = progressbar("Demonstrating. &count& complete.", 100)
+    pbar.start()
+    for i in range(100):
+        time.sleep(0.05)
+        pbar.update(i)
+    pbar.finish()
+    print "Done!"
+
+
+
+
+

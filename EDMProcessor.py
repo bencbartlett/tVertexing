@@ -14,6 +14,7 @@
 '''
 Usage in cmsenv: cmsRun EDMProcessor.py <directory or file> <[output file name]>
 If output file name not provided, uses "ProcessedEDM/ProcessedEDM.root"
+For EOS inputs, use /store/...., without the /eos/cms/
 '''
 
 import FWCore.ParameterSet.Config as cms

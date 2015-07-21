@@ -38,7 +38,7 @@ args = parser.parse_args()
 print "Importing libraries..."
 import ROOT
 import os, sys, platform
-from Misc import progressbar
+from Libraries.FastProgressBar import progressbar 
 try: 
 	import numpy as np
 except ImportError:
@@ -98,7 +98,7 @@ def process(f, outdir):
 	you would use:
 		xpos = Data[7][0]['x']
 	'''
-	print "Processing file: " + str(f) + "..."                                                                                                                
+	print "Processing file: " + str(f) + "...\n"                                                                                                                
 	outArray   = []                                           
 	fIn        = ROOT.TFile.Open(f)
 	tree       = fIn.Get('analysis/HGC') 
@@ -118,6 +118,12 @@ def process(f, outdir):
 		tofT   	   = []                                                                             #|Time-of-flight corrected time data
 		en         = []                                                                             #|Energy 
 		clusterID  = []                                                                             #|What cluster the hit belongs to
+		detID      = []
+		layerID    = [] 
+		isIn3x3    = []                                                                             #|Is in 3x3 grid from center of energy
+		isIn5x5    = []                                                                             #|Is in 5x5 grid from center of energy
+		isIn7x7    = []                                                                             #|Is in 7x7 grid from center of energy
+
 		# Clusters
 		Clusters   = True                                                                           #|Store clusters
 		center_x_  = []                                                                             #|Center of the cluster (energy weighted)
@@ -132,13 +138,14 @@ def process(f, outdir):
 		clusteren  = []                                                                             #|Energy
 		clustereta = []                                                                             #|Eta
 		clusterphi = []                                                                             #|Phi
-		slfClustID = []																				#|Self-referencing cluster ID
+		slfClustID = []                                                                             #|Self-referencing cluster ID
 		clusterroi = []                                                                             #|ROI ID for the cluster
 		# ROIs
 		ROIs       = True 
-		roieta     = [] #|Energy-weighted eta
-		roiphi     = [] #|Energy-weighted phi
-		roipt      = [] #|Energy-weighted pt
+		roiID      = []                                                                             #|Self-referencing ROI ID
+		roieta     = []                                                                             #|Energy-weighted eta
+		roiphi     = []                                                                             #|Energy-weighted phi
+		roipt      = []                                                                             #|Energy-weighted pt
 		roimass    = []
 		roiarea    = []
 		roigenpt   = []
@@ -149,6 +156,7 @@ def process(f, outdir):
 		roistablex = []
 		roistabley = []
 		roistablez = []
+		roistablID = []
 		# Vertices
 		Vertices   = False                                                                          #|Store vertices, won't work for photon gun
 		vertex_x_  = []                                                                             #|Reconstructed vertex location using tracker 
@@ -169,8 +177,15 @@ def process(f, outdir):
 				tofT     .append(hit.t_ + np.sqrt(hit.x_**2 + hit.y_**2 + hit.z_**2)/c)
 				en       .append(hit.en_)
 				clusterID.append(hit.clustId_)
-			recHitsArray = np.core.records.fromarrays([x,y,z,t,en,tofT,clusterID],
-											  names = 'x,y,z,t,en,tofT,clusterID')                  #|Form rechit array
+				detID    .append(hit.detId_)
+				layerID  .append(hit.layerId_)
+				isIn3x3  .append(hit.isIn3x3_)
+				isIn5x5  .append(hit.isIn5x5_)
+				isIn7x7  .append(hit.isIn7x7_)
+			recHitsArray = np.core.records.fromarrays([x, y, z, t, en, tofT, clusterID,
+													   detID, layerID, isIn3x3, isIn5x5, isIn7x7],
+											  names = 'x,y,z,t,en,tofT,clusterID,\
+											  		   detID,layerID,isIn3x3,isIn5x5,isIn7x7')      #|Form rechit array
 			eventArray.append(recHitsArray)                                                         #|Append to event array
 			names += 'RecHits'                                                                      #|Add to names list
 		else:
@@ -206,8 +221,10 @@ def process(f, outdir):
 		else:
 			eventArray.append([])                                                                   #|This is to keep the index of the arrays the same
 
+		ROIindex = 0
 		if ROIs:
 			for ROI in tree.ROIs:
+				roiID     .append(ROIindex)
 				roipt     .append(ROI.pt_)
 				roieta    .append(ROI.eta_)
 				roiphi    .append(ROI.phi_)
@@ -221,11 +238,15 @@ def process(f, outdir):
 				roistablex.append(ROI.stablex_)
 				roistabley.append(ROI.stabley_)
 				roistablez.append(ROI.stablez_)
-			ROIArray = np.core.records.fromarrays([roipt, roieta, roiphi, roimass, roiarea,
+				roistablID.append(ROI.stableid_)
+				ROIindex +=1
+			ROIArray = np.core.records.fromarrays([roiID, roipt, roieta, roiphi, roimass, roiarea,
 												   roigenpt, roigeneta, roigenphi, roigenmass,
-												   roigenarea, roistablex, roistabley, roistablez],
-												   names = 'pt,eta,phi,mass,area,getpt,geneta,\
-												   			getphi,genarea,stablex,stabley,stablez')
+												   roigenarea, roistablex, roistabley, roistablez,
+												   roistablID],
+												   names = 'roiID,pt,eta,phi,mass,area,getpt,\
+												   			geneta,getphi,genarea,stablex,stabley,\
+												   			stablez,stableID')
 			eventArray.append(ROIArray)
 			names += ',ROIs'
 		else:
@@ -260,11 +281,12 @@ def process(f, outdir):
 
 	# Finish up and save array to file
 	pbar.finish()
-	filename = str(f[:-5]) + ".npy" 																#|Replace .root with .npy
+	filename = str(f[:-5]) + ".npy"                                                                 #|Replace .root with .npy
 	filename = filename.split("/")[-1]                                                              #|Removes directory prefixes
 	filepath = outdir+filename
-	print "Writing file " + os.path.abspath(filepath) + "..."
+	print "\nWriting file " + os.path.abspath(filepath) + "..."
 	np.save(filepath, outArray)
+	print "Processing complete.\n"
 
 
 if __name__ == "__main__":
