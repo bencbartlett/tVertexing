@@ -38,7 +38,10 @@ args = parser.parse_args()
 print "Importing libraries..."
 import ROOT
 import os, sys, platform
+from multiprocessing import Pool
 from Libraries.FastProgressBar import progressbar 
+from ExternalLibraries.blessings import Terminal
+term = Terminal()
 try: 
 	import numpy as np
 except ImportError:
@@ -56,8 +59,17 @@ else:
 	sys.exit()                                                            
 ROOT.AutoLibraryLoader.enable()                                                                     
 
+class Writer(object):
+    """Helper class for making multiprocessing progress bars"""
+    def __init__(self, location):
+        """Input: location - tuple of ints (x, y), the position of the bar in the terminal"""
+        self.location = location
+    def write(self, string):
+        with term.location(*self.location):
+            print(string)
+
 # Main processing function
-def process(f, outdir):
+def process((f, outdir, showProgress, threadID, quiet)):
 	'''
 	Usage: process(fileName, writeDirectory)
 
@@ -98,13 +110,19 @@ def process(f, outdir):
 	you would use:
 		xpos = Data[7][0]['x']
 	'''
-	print "Processing file: " + str(f) + "...\n"                                                                                                                
+	if not quiet: print "Processing file: " + str(f) + "..."                                                                                                                
 	outArray   = []                                           
 	fIn        = ROOT.TFile.Open(f)
 	tree       = fIn.Get('analysis/HGC') 
 	numentries = tree.GetEntries() 
-	pbar       = progressbar("Processing &count& events:", numentries) 
-	pbar.start()                                                
+	if showProgress:
+		if threadID:
+			writer = Writer((0, 2*threadID+2))
+			string = "{0:22s} &count&: ".format(str(f))
+			pbar   = progressbar(string, numentries + 1, fd=writer) 
+		else: 
+			pbar   = progressbar("Processing &count& events from %s"%str(f), numentries + 1) 
+		pbar.start()                                                
 	for i in xrange(0, numentries): 
 		tree.GetEntry(i) 
 		eventArray = []
@@ -265,9 +283,14 @@ def process(f, outdir):
 			eventArray.append([])                                                                   #|This is to keep the index of the arrays the same
 
 		if GenVert:
-			gen_x_.append(tree.GenVertex.x())                                                       #|GenVertex is not iterable like the other classes, since there is only one per event.
-			gen_y_.append(tree.GenVertex.y())
-			gen_z_.append(tree.GenVertex.z())
+			try:
+				gen_x_.append(tree.GenVertex.X())                                                   #|GenVertex is not iterable like the other classes, since there is only one per event.
+				gen_y_.append(tree.GenVertex.Y())
+				gen_z_.append(tree.GenVertex.Z())
+			except AttributeError:                                                                  #|Some sets use TLorentzVectors, some use TVector3. For some unfathomable reason, these have different capitalizations.
+				gen_x_.append(tree.GenVertex.x())                                                   #|GenVertex is not iterable like the other classes, since there is only one per event.
+				gen_y_.append(tree.GenVertex.y())
+				gen_z_.append(tree.GenVertex.z())
 			genVertexArray = np.core.records.fromarrays([gen_x_, gen_y_, gen_z_],
 													  	 names='x,y,z')
 			eventArray.append(genVertexArray)                                                       #|Generated vertices array
@@ -277,16 +300,18 @@ def process(f, outdir):
 
 		# Combine arrays for single event and append to outArray
 		outArray.append(eventArray)                                                                 #|Converts to a 2D numpy structured array indexed by event number
-		pbar.update(i)
+		if showProgress: pbar.update(i)                                                             #|Update progressbar
+		if (not showProgress) and (i % 100 == 0) and (not quiet): 
+			print "Thread %i >> Processed %i of %i events." % (threadNo, i, numentries)             #|In the case this is being multiprocessed, progressbar doesn't work well, so just print the stuff.
 
 	# Finish up and save array to file
-	pbar.finish()
+	if showProgress: pbar.finish()
 	filename = str(f[:-5]) + ".npy"                                                                 #|Replace .root with .npy
 	filename = filename.split("/")[-1]                                                              #|Removes directory prefixes
 	filepath = outdir+filename
-	print "\nWriting file " + os.path.abspath(filepath) + "..."
+	if not quiet: print "Writing file " + os.path.abspath(filepath) + "..."
 	np.save(filepath, outArray)
-	print "Processing complete.\n"
+	if not quiet: print "Processing complete.\n"
 
 
 if __name__ == "__main__":
@@ -296,15 +321,27 @@ if __name__ == "__main__":
 	else:
 		outdir = args.outdir
 	if args.folder:
-		directory = args.input
-		files = [f for f in os.listdir(directory) if f.endswith(".root")]                           #|Get root files in directory
+		os.system("clear")
+		directory    = args.input
+		files        = [f for f in os.listdir(directory) if f.endswith(".root")]                           #|Get root files in directory
 		os.chdir(directory)
-		for f in files:
-			process(f, outdir)
+		showProgress = True
+		print "Processing %i files from %s..." % (len(files), directory)
+		with term.fullscreen():
+			pool = Pool(processes = len(files))
+			pool.map(process, [(files[i], outdir, showProgress, i+1, True) for i in range(len(files))])
+		#for f in files:
+		#	process((f, outdir, showProgress, None, False))
 	else:
-		process(args.input, outdir)
+		showProgress = True
+		directory, filename = args.input.rsplit("/",1)
+		os.system("clear")
+		os.chdir(directory)
+		with term.fullscreen():
+			process((filename, outdir, showProgress, None, True))
 
-  
+    raw_input("Operation completed\nPress enter to return to the terminal.")
+
 
 
 

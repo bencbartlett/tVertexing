@@ -1,0 +1,86 @@
+{\rtf1\ansi\ansicpg1252\cocoartf1348\cocoasubrtf170
+{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\listtable{\list\listtemplateid1\listhybrid{\listlevel\levelnfc23\levelnfcn23\leveljc0\leveljcn0\levelfollow0\levelstartat1\levelspace360\levelindent0{\*\levelmarker \{disc\}}{\leveltext\leveltemplateid1\'01\uc0\u8226 ;}{\levelnumbers;}\fi-360\li720\lin720 }{\listlevel\levelnfc23\levelnfcn23\leveljc0\leveljcn0\levelfollow0\levelstartat1\levelspace360\levelindent0{\*\levelmarker \{hyphen\}}{\leveltext\leveltemplateid2\'01\uc0\u8259 ;}{\levelnumbers;}\fi-360\li1440\lin1440 }{\listname ;}\listid1}}
+{\*\listoverridetable{\listoverride\listid1\listoverridecount0\ls1}}
+{\info
+{\author Ben Bartlett}
+{\*\company California Institute of Technology}}\margl1440\margr1440\vieww28600\viewh16500\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural
+
+\f0\fs36 \cf0 Overall Organization
+\fs24 \
+\
+Below is the general structure of this project. Last updated 24 July 2015.\
+\
+\pard\tx220\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\li720\fi-720\pardirnatural
+\ls1\ilvl0\cf0 {\listtext	\'95	}
+\b __init__.py
+\b0 : a blank file to allow this module to be imported if necessary.\
+{\listtext	\'95	}
+\b EDMProcessor.py
+\b0 : converts the EDM files to a more usable .root file containing only the information we will need in a cleaner HGCROI TTree format.\
+{\listtext	\'95	}
+\b Plotter.py
+\b0 : contains a number of supplementary methods to generate plots, usually from the tVertexing algorithm outputs\
+{\listtext	\'95	}
+\b RootProcessor.py
+\b0 : converts the processed root files to structured numpy arrays, which are faster and easier to work with.\
+{\listtext	\'95	}
+\b README.md
+\b0 : github readme. On github at github.com/bencbartlett/tVertexing \
+{\listtext	\'95	}
+\b tVertexing.py
+\b0 : the main contents of the algorithm, containing the actual algorithm itself, along with various filters, such as invariant mass checks, pileup removal, etc.\
+{\listtext	\'95	}
+\b Data
+\b0 : contains various data files to run on the tVertexing algorithm. Some of these may be antiquated. Also the default output directory of the RootProcessor.py program\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\li1440\fi-1440\pardirnatural
+\ls1\ilvl1\cf0 {\listtext	\uc0\u8259 	}Various data files\
+\pard\tx220\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\li720\fi-720\pardirnatural
+\ls1\ilvl0\cf0 {\listtext	\'95	}
+\b Documentation
+\b0 : contains documentation. Duh.\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\li1440\fi-1440\pardirnatural
+\ls1\ilvl1\cf0 {\listtext	\uc0\u8259 	}Various documents\
+\pard\tx220\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\li720\fi-720\pardirnatural
+\ls1\ilvl0\cf0 {\listtext	\'95	}
+\b ExternalLibraries
+\b0 : contains imported modules which I did not write, but that are used in various programs.\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\li1440\fi-1440\pardirnatural
+\ls1\ilvl1\cf0 {\listtext	\uc0\u8259 	}blessings: terminal output, used in multithreaded progress bars\
+{\listtext	\uc0\u8259 	}progressbar: text-based python progress bar. Usually this is used in the Libraries.FastProgressBar, which is a simpler wrapper I have made for this library.\
+{\listtext	\uc0\u8259 	}root_numpy: occasionally used in converting root trees to structured numpy arrays with limited success.\
+\pard\tx220\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\li720\fi-720\pardirnatural
+\ls1\ilvl0\cf0 {\listtext	\'95	}
+\b Libraries
+\b0 : contains miscellaneous libraries I wrote\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\li1440\fi-1440\pardirnatural
+\ls1\ilvl1\cf0 {\listtext	\uc0\u8259 	}FastProgressBar: wrapper for the ExternalLibraries.progressbar package, standardizes and makes it easier to use\
+\pard\tx220\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\li720\fi-720\pardirnatural
+\ls1\ilvl0\cf0 {\listtext	\'95	}
+\b Plots
+\b0 : contains various plots \
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\li1440\fi-1440\pardirnatural
+\ls1\ilvl1\cf0 {\listtext	\uc0\u8259 	}Various sets of plots\
+\pard\tx220\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\li720\fi-720\pardirnatural
+\ls1\ilvl0\cf0 {\listtext	\'95	}
+\b ProcessedEDM
+\b0 : default output folder of the EDMProcessor.py file\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\li1440\fi-1440\pardirnatural
+\ls1\ilvl1\cf0 {\listtext	\uc0\u8259 	}Various .root files\
+\pard\tx220\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\li720\fi-720\pardirnatural
+\ls1\ilvl0\cf0 {\listtext	\'95	}
+\b Scripts
+\b0 : various quick-and-dirty scripts made to automate some things on a case by case basis. As a whole, not well documented.\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\li1440\fi-1440\pardirnatural
+\ls1\ilvl1\cf0 {\listtext	\uc0\u8259 	}Various scripts, mostly .py.\
+\pard\tx220\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\li720\fi-720\pardirnatural
+\ls1\ilvl0\cf0 {\listtext	\'95	}
+\b ToProcess
+\b0 : put EDM files here to process with EDMProcessor.py. However, you can also specify for it to look in a different directory.\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\li1440\fi-1440\pardirnatural
+\ls1\ilvl1\cf0 {\listtext	\uc0\u8259 	}Various EDM .root files.\
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural
+\cf0 \
+}

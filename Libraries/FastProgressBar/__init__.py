@@ -484,7 +484,7 @@ class ProgressBar(object):
 
 
 
-def progressbar(title, max):
+def progressbar(title, maxval, fd=None):
     '''Usage: 
        To make:   pbar = pbar("Title", maxCount)
                   Parses at most one instance of "&count" to be like "12 of 16".
@@ -505,7 +505,10 @@ def progressbar(title, max):
     else:
         widgets = [title, ' ', Percentage(), ' ',
                    Bar(marker='#',left='[',right=']'), ' ', ETA()]
-    pbar = ProgressBar(widgets=widgets, maxval= max)
+    if fd: 
+        pbar = ProgressBar(widgets=widgets, maxval= maxval, fd=fd)
+    else:
+        pbar = ProgressBar(widgets=widgets, maxval= maxval)
     return pbar
 
 

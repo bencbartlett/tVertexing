@@ -1,0 +1,33 @@
+{\rtf1\ansi\ansicpg1252\cocoartf1348\cocoasubrtf170
+{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\info
+{\author Ben Bartlett}
+{\*\company California Institute of Technology}}\margl1440\margr1440\vieww28600\viewh16500\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural
+
+\f0\fs36 \cf0 Some errors and how to fix them\
+
+\fs24 \
+Likely to show up in RootProcessor.py:\
+\
+Problem:\
+\
+	>>python RootProcessor.py ~/work/ ~/work/\
+	>>usage: RootProcessor.py [-h] [-f] [-o OUTDIR] input\
+\
+Solution: RootProcessor uses -f and -o tags to specify to read from a folder and to output to a non-default directory. The correct usage is \
+\
+	>>python RootProcessor.py -f ~/work/ -o ~/work/\
+\
+Problem:\
+\
+	Warning in <TClass::TClass>: no dictionary for class SlimmedRecHit is available\
+	Warning in <TClass::TClass>: no dictionary for class SlimmedCluster is available\
+	Warning in <TClass::TClass>: no dictionary for class SlimmedROI is available\
+	Warning in <TClass::TClass>: no dictionary for class SlimmedVertex is available\
+\
+Solution: make sure cmsenv is activated, CMSSW is set up correctly and includes the HGCROI library, or, if running locally, that FWLite is properly configured.\
+\
+\
+}

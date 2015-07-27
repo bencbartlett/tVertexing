@@ -23,6 +23,8 @@ from mpl_toolkits.mplot3d import Axes3D, art3d
 from matplotlib.offsetbox import TextArea, VPacker, AnnotationBbox
 from Libraries.FastProgressBar import progressbar
 from scipy.stats import norm
+from ExternalLibraries.blessings import Terminal
+term = Terminal()
 
 # Constants
 ECalRadius = 129.0                                                                                  #|Radius of ECal in cm
@@ -63,7 +65,7 @@ def vertexPlot(vertex, hits):
     plt.show()
 
 
-def showerAnimator(hits, eventNo, title, clusterID=-1, delete=False, frames=15, endLoop = 0,
+def showerAnimator(hits, eventNo, title, clusterID=-1, delete=False, frames=30, endLoop = 0,
                                          projections=True, transparency=False):
     '''
     Usage: showerAnimator(recordedHits, plotTitle, eventToAnalyse, clusterToAnalyse=None, 
@@ -116,7 +118,7 @@ def showerAnimator(hits, eventNo, title, clusterID=-1, delete=False, frames=15, 
     count    = 1
     t = t0   = np.min(cth)
     maxt     = np.max(cth)
-    tstep    = (maxt - t)/float(frames-1)                                                           #|Time step in ns
+    tstep    = (maxt - t)/float(frames)                                                           #|Time step in ns
     title    = ax.text2D(.3,1.0,'Shower simulation', transform=ax.transAxes, size='large')
     colorcal = ax.scatter([0,0],[0,0],[0,0], c=[0,maxEh + 1], cmap=cm.rainbow)
     cbar     = fig.colorbar(colorcal, shrink=.7)
@@ -172,7 +174,7 @@ def showerAnimator(hits, eventNo, title, clusterID=-1, delete=False, frames=15, 
 
 
 
-def tVertexErrorHist(diffs, nEvents, ranges=None, quiet=True):
+def tVertexErrorHist(diffs, nEvents, title=None, ranges=None, quiet=True):
     '''
     Plots an error histogram for tVertex-genVertex z values.
     Usage: tVertexErrorHist(differences, number of counts, quiet=True)
@@ -186,7 +188,10 @@ def tVertexErrorHist(diffs, nEvents, ranges=None, quiet=True):
     line             = ax.plot(bins, fitline, "r--", linewidth = 2)
     ax.set_xlabel("Error (mm)") 
     ax.set_ylabel("Counts (normalized from $\Sigma=%i$)" % nEvents)
-    ax.set_title("tVertexed $z$ - genVertex $z$ for 500GeV $\gamma$-gun")
+    if title == None:
+        ax.set_title("tVertexed $z$ - genVertex $z$ for 500GeV $\gamma$-gun")
+    else: 
+        ax.set_title(title)
     # Build output and figure text string
     string =  "$\mu$ = %.3f$\pm$%.3fmm,  $\sigma$ = %.3fmm \n" % (mu, muerr, sigma)                 #|Print out info box 
     string += "Median error magnitude:   {0:>6.3f}mm \n".format(np.median(absDiffs))
@@ -232,14 +237,48 @@ def tVertexErrorPlot(diffsList, values):
     plt.show()
 
 
+def energyResolutionBarPlot(en, medians, occurrences):
+    pylab.bar(en, medians, width=np.multiply(0.2,en), color='#000088', 
+                           yerr=medians/np.sqrt(occurrences))
+    pylab.xlim(9.0, np.max(en)+300)
+    pylab.xscale("log")
+    pylab.xlabel("Photon energy (GeV - log scale)")
+    pylab.ylabel("Median error (mm)")
+    pylab.title("tVertexing Precision Over $\gamma$ Energy - 50ps Time Smearing")
+    comment = "Clustering algorithm\nfails at very low\n" + \
+              "energies, likely\ndue to energy\nthresholding."
+    pylab.text(2.2,0.25,comment)
+    tickLabels = [str(eng)+"GeV" for eng in en]
+    pylab.xticks(en, tickLabels, rotation="vertical")
+    plt.show()
+
+
+def energyResolutionLinePlot(en, medians, occurrences):
+    pylab.errorbar(en, medians, color='#000088', lw=2.0, 
+                                yerr=medians/np.sqrt(occurrences), ecolor="r")
+    pylab.fill_between(en, medians + medians/np.sqrt(occurrences), 
+                           medians - medians/np.sqrt(occurrences), color='#BBBBBB')
+    pylab.xlim(9.0, np.max(en)+100)
+    pylab.ylim(0.0,4.0)
+    pylab.xscale("log")
+    pylab.xlabel("Photon energy (GeV - log scale)")
+    pylab.ylabel("Median error (mm)")
+    pylab.title("tVertexing Precision Over $\gamma$ Energy - No Time Smearing")
+    #pylab.text(2.2,0.25,"Clustering algorithm\nfails at very low\nenergies, likely\ndue to energy\nthresholding.")
+    tickLabels = [str(eng)+"GeV" for eng in en]
+    pylab.xticks(en, tickLabels, rotation="vertical")
+    plt.savefig("LinePlot0ps.png")
+    plt.show()
+
+
 def energySpectrum(data):
     '''Quick, sloppy funciton. Plots pT spectrum for a distribution.'''
     print "Getting energies, etas, pTs..."  
     eventpTs = [np.sort(event[2]['pt'])[::-1] for event in data]                                    #|Get ROI pT in descending order    
-    pTs = np.extract([len(event) >= 2 for event in eventpTs], eventpTs)                             #|Get at least two clusters    
-    pTs = np.extract([pT[1] > 20 for pT in pTs], pTs)                                               #|Second biggest cluster energy must also have 20GeV 
-    flatpTs = np.hstack(pTs)
-    fig, ax = plt.subplots()
+    pTs      = np.extract([len(event) >= 2 for event in eventpTs], eventpTs)                             #|Get at least two clusters    
+    pTs      = np.extract([pT[1] > 20 for pT in pTs], pTs)                                               #|Second biggest cluster energy must also have 20GeV 
+    flatpTs  = np.hstack(pTs)
+    fig, ax  = plt.subplots()
     ax.hist(flatpTs, bins = 100, range = [0,300])
     ax.set_xlabel("ROI $p_T \cdot c$ (GeV)")
     ax.set_ylabel("Count")
@@ -249,7 +288,25 @@ def energySpectrum(data):
 
 if __name__ == '__main__':                                                                       
     # Test stuff
-    tVertexErrorPlot(np.load("diffs.npy"), np.load("vals.npy"))
+    #tVertexErrorPlot(np.load("diffs.npy"), np.load("vals.npy"))
+    directory    = "Data/Processed/"
+    files        = [f for f in os.listdir(directory) if f.endswith("_tVertexed.npy")]
+    en           = [] 
+    medians      = []
+    occurrences  = []
+    for f in files:        
+        absdiffs = np.absolute(np.load(directory+f))
+        if len(absdiffs) <= 1:
+            continue
+        en.append(int(f.split("_")[-2]))
+        medians.append(np.median(absdiffs))
+        occurrences.append(len(absdiffs))
+    # Sort by energy
+    order       = np.argsort(en)
+    en          = np.array(en)[order]
+    medians     = np.array(medians)[order]
+    occurrences = np.array(occurrences)[order]
+    energyResolutionLinePlot(np.array(en), medians, occurrences)
 
 
 
