@@ -23,7 +23,8 @@ import argparse
 parser = argparse.ArgumentParser(description = 
 	'''Converts HGCROIAnalysis-format .root files into RecHit numpy arrays.
 	If converting all files in a directory using -f, make sure all files are HGCROI-formatted.''',\
-	epilog = '''NOTE: This program must be run while cmsenv is active.
+	epilog = '''>> Example: python RootProcessor.py -f ~/public/testfile.root -o ~/public/data
+	NOTE: This program must be run while cmsenv is active.
 
 	''')
 parser.add_argument("-f", "--folder", \
@@ -339,8 +340,7 @@ if __name__ == "__main__":
 		os.chdir(directory)
 		with term.fullscreen():
 			process((filename, outdir, showProgress, None, True))
-
-    raw_input("Operation completed\nPress enter to return to the terminal.")
+	raw_input("Operation completed\nPress enter to return to the terminal.")
 
 
 
