@@ -98,6 +98,14 @@ def twoVertex(hit1, hit2):
                      t2 - np.sqrt(x2**2 + y2**2 + (z2-solnZ)**2)/c])
     return [solnZ, solnT, soln1, soln2, error]
 
+def XYZtoEtaPhi(xyz):
+    '''Convert xyz coordinates to an eta-phi map'''
+    x, y, z = xyz 
+    phi = np.arctan2(y, x)
+    theta = np.arctan2(np.sqrt(x**2 + y**2), z)
+    eta = -np.log(np.tan(theta/2)) 
+    return eta, phi
+
 def getClusterArrivalTimes(RecHits, clusterID):
     '''
     Computes the energy-weighted arrival times of a given cluster (not given in tree).
@@ -212,10 +220,10 @@ def HiggsInvariantMassFilter(event):
     eta1, eta2  = eventpts['eta'][0:2]
     phi1, phi2  = eventpts['phi'][0:2]
     # Calculate needed parameters
-    E1, E2      = pt1*np.cosh(eta1), pt2*np.cosh(eta2)
+    E1, E2      = E1*np.tanh(eta1), E2*np.tanh(eta2)
     px1, px2    = pt1*np.cos(phi1), pt2*np.cos(phi2)
     py1, py2    = pt1*np.sin(phi1), pt2*np.sin(phi2)
-    pz1, pz2    = E1*np.tanh(eta1), E2*np.tanh(eta2)
+    pz1, pz2    = pt1*np.cosh(eta1), pt2*np.cosh(eta2)
     # Calculate invariant mass
     eventVector = fourVector(E1,px1,py1,pz1) + fourVector(E2,px2,py2,pz2)
     invmass     = np.sqrt(eventVector.dot(eventVector))
@@ -236,8 +244,12 @@ def HggFilter(data, quiet=True):
     data     = np.compress([HiggsInvariantMassFilter(event) for event in data], data, axis=0)       #|Pick events with invariant mass near 125GeV
     data     = np.compress([np.max(event[2]['eta'])-np.min(event[2]['eta']) > \
                             1.0 for event in data], data, axis=0)                                   #|Require an eta separation to prevent high errors
-
     return data
+
+
+def layerVarianceAnalysis(event, roiID=0):
+    for hit in event:
+        pass
 
 
 def tVertexData(data, pbar=None, currentFile="", runNumber=None, dataLength=None,
@@ -361,9 +373,10 @@ def tVertexData(data, pbar=None, currentFile="", runNumber=None, dataLength=None
     oldlen       = len(diffs)
     if oldlen == 0: return np.array([0])                                                            #|-1 is returned for empty array
     #worstPercent = np.percentile(np.absolute(diffs),100-3)                                         #|Extract magnitude of worst estimate
-    #worstPercent = absdiffs[int(np.round(0.90 * oldlen))]
-    #diffs        = np.extract(absdiffs< worstPercent, diffs)                                       #|Pull out all the stuff past 2mm error
-    
+    #worstPercent = absdiffs[int(np.round(0.050 * oldlen))]
+    #diffs        = np.extract(absdiffs < worstPercent, diffs)                                       #|Pull out all the stuff past 2mm error
+    diffs = np.extract(np.absolute(diffs) < 1.5, diffs)
+
     if not quiet: 
         print "Correctly identified %i/%i events in %s." % \
                 (nAttempted-incorrectCount, nAttempted, currentFile)
@@ -375,7 +388,7 @@ def tVertexData(data, pbar=None, currentFile="", runNumber=None, dataLength=None
 
     if plotData:
         Plotter.tVertexErrorHist(10*diffs, len(diffs), title=plotTitle, 
-                                 ranges=[-35,35], quiet=False)
+                                 ranges=[-15,15], quiet=False)
 
     if returnDiffs:
         return diffs 

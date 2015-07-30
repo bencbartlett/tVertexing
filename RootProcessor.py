@@ -264,7 +264,7 @@ def process((f, outdir, showProgress, threadID, quiet)):
 												   roigenarea, roistablex, roistabley, roistablez,
 												   roistablID],
 												   names = 'roiID,pt,eta,phi,mass,area,getpt,\
-												   			geneta,getphi,genarea,stablex,stabley,\
+												   			geneta,genphi,genarea,stablex,stabley,\
 												   			stablez,stableID')
 			eventArray.append(ROIArray)
 			names += ',ROIs'
