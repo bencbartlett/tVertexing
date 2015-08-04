@@ -23,7 +23,6 @@ import warnings
 import os, sys
 from Libraries.FastProgressBar import progressbar
 from multiprocessing import Pool
-from scipy.stats import norm
 from ExternalLibraries.blessings import Terminal
 term = Terminal()
 
@@ -117,7 +116,7 @@ def getClusterArrivalTimes(RecHits, clusterID):
                                              RecHits['clusterID']==clusterID,
                                              RecHits['isIn3x3']))                                   #|Extraction mask for cluster t and xyz processing; decides initially which hits to be counted
     arrivalTimes    = np.extract(extractMask, RecHits['tofT'])
-    arrivalEnergies = np.extract(extractMask, RecHits['en'])
+    # arrivalEnergies = np.extract(extractMask, RecHits['en'])
     return np.mean(arrivalTimes)
     #return np.dot(arrivalTimes,arrivalEnergies)/np.sum(arrivalEnergies)
 
@@ -130,51 +129,53 @@ def getClusterXYZ(RecHits, clusterID):
     extractMask = np.logical_and.reduce((RecHits['t'] > 0, 
                                          RecHits['clusterID'] == clusterID,
                                          RecHits['isIn3x3']))                                       #|Extraction mask for cluster t and xyz processing; decides initially which hits to be counted
-    newRecHits  = np.compress(extractMask, RecHits)
     #minLayer = np.min(newRecHits['layerID'])
     #newRecHits = np.compress(newRecHits['layerID'] == minLayer, newRecHits)
     x = np.extract(extractMask, RecHits['x'])
     y = np.extract(extractMask, RecHits['y'])
     z = np.extract(extractMask, RecHits['z'])
     E = np.extract(extractMask, RecHits['en'])
-    # x = newRecHits['x']
-    # y = newRecHits['y']
-    # z = newRecHits['z']
-    # E = newRecHits['en']
 
-    return np.mean(x), np.mean(y), np.mean(z)
-    logE = E/50.0                                                                                   #|Set energy threshold, in this case, 30MIPs
-    x = np.extract(E > 50.0, x)
-    y = np.extract(E > 50.0, y)
-    z = np.extract(E > 50.0, z)
-    E = np.extract(E > 50.0, E)
-    logE = np.log(np.extract(logE > 1.0, logE))
-    #return np.dot(x,logE)/np.sum(logE), np.dot(y,logE)/np.sum(logE), np.mean(z)
-    return np.dot(x,logE)/np.sum(logE), np.dot(y,logE)/np.sum(logE), np.dot(z,logE)/np.sum(logE)
+    #return (np.mean(x), np.mean(y), np.mean(z))                                                    #|Flat average
+
+    # Energy weight
+    w0 = 7                                                                                          #|Arbitrary weighting term that works well, as found by Geoffrey Monet
+    Eweight = np.maximum(np.log(E/np.sum(E)) + w0, 0)
+
+
+    xw, yw, zw = (np.dot(x,Eweight)/np.sum(Eweight), 
+                  np.dot(y,Eweight)/np.sum(Eweight), 
+                  np.dot(z,Eweight)/np.sum(Eweight))                                                #|Weighted average
+
+    return xw, yw, zw
 
 def getClusterPointer(RecHits, center, clusterID, quiet=True):
     '''
     Computes the energy-weighted pointing direction of the cluster, using a different method than
     PCA analysis, which in some sets seems to be inaccurate.
     '''
-    extractMask = np.logical_and.reduce((RecHits['t'] > 0, 
-                                         RecHits['clusterID'] == clusterID,
-                                         RecHits['isIn3x3']))                                       #|Extraction mask for cluster t and xyz processing; decides initially which hits to be counted
-    newRecHits  = np.compress(extractMask, RecHits) 
-    points = np.vstack((np.extract(extractMask, RecHits['x']),
-                        np.extract(extractMask, RecHits['y']),
-                        np.extract(extractMask, RecHits['z']))).T
-    centerDist = np.linalg.norm(center)
+    extractMask   = np.logical_and.reduce((RecHits['t'] > 0, 
+                                           RecHits['clusterID'] == clusterID,
+                                           RecHits['isIn3x3']))                                     #|Extraction mask for cluster t and xyz processing; decides initially which hits to be counted
+    points        = np.vstack((np.extract(extractMask, RecHits['x']),
+                               np.extract(extractMask, RecHits['y']),
+                               np.extract(extractMask, RecHits['z']))).T
+    centerDist    = np.linalg.norm(center)
     furtherPoints = np.compress([np.linalg.norm(point) >= centerDist for point in points], 
-                                points - center, axis=0)
+                                 points - center, axis=0)
     closerPoints  = np.compress([np.linalg.norm(point) < centerDist for point in points], 
-                                center - points, axis=0) 
+                                 center - points, axis=0) 
     pointerVector = np.mean(np.concatenate((furtherPoints, closerPoints)), axis=0)
     pointerVector /= np.linalg.norm(pointerVector)
     # "Vertex" the point using the pointing data
     if not quiet:
         pass
     return pointerVector/np.linalg.norm(pointerVector)
+
+def regressClusterPointer(hits, clusterID, quiet=True):
+    '''Performs a linear regression in x,y to get vertex pointer.'''
+    pass
+    
 
 def pVertexPCA(event, cID):
     '''
@@ -196,73 +197,87 @@ def pVertexPCA(event, cID):
                weights=np.absolute([event[1]['centerX'][cID], event[1]['centerY'][cID]]))
     return pVertexZ, pVertexY, pVertexX
 
+
 class fourVector(object):                                                                           #|Energy-momentum four-vector for Higgs filter
+    '''Energy-momentum four vector for a physics object.'''
     def __init__(self,E,px,py,pz):
-        self.__E  = E
-        self.__px = px
-        self.__py = py
-        self.__pz = pz
+        self.E  = E
+        self.px = px
+        self.py = py
+        self.pz = pz
     def dot(self, other):
-        return self.__E*other.__E - (self.__px*other.__px+self.__py*other.__py+self.__pz*other.__pz)
+        return self.E*other.E - (self.px*other.px + self.py*other.py + self.pz*other.pz)
     def __add__(self, other):
-        self.__E  += other.__E
-        self.__px += other.__px
-        self.__py += other.__py
-        self.__pz += other.__pz
+        self.E  += other.E
+        self.px += other.px
+        self.py += other.py
+        self.pz += other.pz
         return self
 
-def HiggsInvariantMassFilter(event):
+def invariantMass(event):
+    '''Get the invariant mass of a system. Used in a comparison of invariant mass vs error.'''
     # Extract data
-    if len(event[2]) < 2:
-        return False                                                                                #|Skips events with less than one ROI
-    eventpts    = np.sort(event[2], order='pt')
+    eventpts    = np.sort(event[2], order='pt')[::-1]
     pt1, pt2    = eventpts['pt'][0:2]
     eta1, eta2  = eventpts['eta'][0:2]
     phi1, phi2  = eventpts['phi'][0:2]
     # Calculate needed parameters
-    E1, E2      = E1*np.tanh(eta1), E2*np.tanh(eta2)
-    px1, px2    = pt1*np.cos(phi1), pt2*np.cos(phi2)
-    py1, py2    = pt1*np.sin(phi1), pt2*np.sin(phi2)
-    pz1, pz2    = pt1*np.cosh(eta1), pt2*np.cosh(eta2)
+    E1,  E2     = pt1*np.cosh(eta1), pt2*np.cosh(eta2)
+    px1, px2    = pt1*np.cos(phi1),  pt2*np.cos(phi2)
+    py1, py2    = pt1*np.sin(phi1),  pt2*np.sin(phi2)
+    pz1, pz2    = pt1*np.sinh(eta1), pt2*np.sinh(eta2)
     # Calculate invariant mass
     eventVector = fourVector(E1,px1,py1,pz1) + fourVector(E2,px2,py2,pz2)
     invmass     = np.sqrt(eventVector.dot(eventVector))
+    return invmass
+
+def HiggsInvariantMassFilter(event):
     # Return if within variance of Higgs mass
-    variance = 50.0
+    variance = 10.0
+    invmass = invariantMass(event)
     return invmass > HiggsMass - variance and invmass < HiggsMass + variance                        #|Filters for Higgs mass range
+
+def ROIEnergySpreadFilter(event):
+    '''
+    Looks at how spread the energy is over clusters. Only keeps events with energies very 
+    concentrated in the most energetic clusters.
+    '''
+    pass
 
 
 def HggFilter(data, quiet=True):
-    '''
-    Filters Hgg data set to clean it up some, removing some of the crap.
-    '''
-    if not quiet: print "Filtering"
-    #eventpTs = [event[2]['pt'] for event in data]                                                  #|Get ROI pT in descending order    
-    #twoROIs  = np.compress([len(pT) >= 2 for pT in eventpTs], data, axis=0)                        #|Get at least two ROI's    
-    #pTs      = [np.sort(event[2]['pt'])[::-1] for event in twoROIs]                                #|Get new sorted ROI pT from refined list
-    #data     = np.compress([pT[1] > 20 for pT in pTs], twoROIs, axis=0)                            #|Second biggest cluster energy must also have 20GeV 
+    '''Filters Hgg data set to clean it up some, removing some of the crap.'''
+    if not quiet: print "Filtering"   
+    data     = np.compress([len(event[2]) >= 2 for event in data], data, axis=0)                    #|Get at least two ROI's    
+    data     = np.compress([len(event[1]) <= 7 for event in data], data, axis=0)                    #|Use at events with at most 7 clusters to cut down on crap
+    #pTs      = [np.sort(event[2]['pt'])[::-1] for event in data]                                   #|Get new sorted ROI pT from refined list
+    #data     = np.compress([pT[1] > 20 for pT in pTs], data, axis=0)                               #|Second biggest cluster energy must also have 20GeV 
     data     = np.compress([HiggsInvariantMassFilter(event) for event in data], data, axis=0)       #|Pick events with invariant mass near 125GeV
-    data     = np.compress([np.max(event[2]['eta'])-np.min(event[2]['eta']) > \
-                            1.0 for event in data], data, axis=0)                                   #|Require an eta separation to prevent high errors
+    data     = np.compress([np.max(event[2]['eta'])*np.min(event[2]['eta']) < 0 for event in data], 
+                           data, axis=0)                                                            #|Require an eta separation of opposite endcaps to prevent high errors
     return data
 
 
-def layerVarianceAnalysis(event, roiID=0):
-    for hit in event:
-        pass
-
+def gammaGunFilter(data, quiet=True):
+    '''Filters gamma gun data set to clean it up some, removing some of the crap.'''
+    if not quiet: print "Filtering"   
+    data     = np.compress([len(event[2]) >= 2 for event in data], data, axis=0)                    #|Get at least two ROI's    
+    data     = np.compress([np.max(event[2]['eta'])*np.min(event[2]['eta']) < 0 for event in data], 
+                           data, axis=0)                                                            #|Require an eta separation of opposite endcaps to prevent high errors
+    return data
 
 def tVertexData(data, pbar=None, currentFile="", runNumber=None, dataLength=None,
-                plotData=False, plotTitle=None, quiet=False, returnDiffs=True):
-    '''
-    Script for running through a large number of GammaGun events.
-    '''
+                      errorPlot=False, plotTitle=None, quiet=False, returnDiffs=True, 
+                      invMassVsError=False):
+    '''Script for vertexing a large set of events.'''
+    if invMassVsError: returnDiffs = False
     i                 = 0
     skippedCount      = 0                                                                           #|Number of skipped events
     incorrectCount    = 0                                                                           #|Number of incorrect vertex predictions
     tVertexZList      = []                                                                          #|List of calculated vertices
     genVertexZList    = []                                                                          #|List of actual vertices
     correctVertexList = []
+    invariantMassList = []
     ldata             = len(data)
     nAttempted        = len(data)
     for event in data:
@@ -311,7 +326,7 @@ def tVertexData(data, pbar=None, currentFile="", runNumber=None, dataLength=None
             vertices     = twoVertex(cluster0Hits, cluster1Hits)
             tVertexZ     = vertices[0]                                                              #|Optimal solution 
             soln1, soln2 = vertices[2:4]                                                            #|Pass both solutions to compare
-            error        = vertices[4] 
+            # error        = vertices[4] 
             if np.absolute(tVertexZ) > 15.0:                                                        #|Automatically discard any fishy looking solutions
                 nAttempted   -= 1
                 i            += 1
@@ -323,6 +338,7 @@ def tVertexData(data, pbar=None, currentFile="", runNumber=None, dataLength=None
             errorZ = np.absolute(tVertexZ-genVertexZ)
             tVertexZList.append(tVertexZ)
             genVertexZList.append(genVertexZ)
+            invariantMassList.append(invariantMass(event))
 
             # Build output string
             if not quiet:
@@ -354,10 +370,10 @@ def tVertexData(data, pbar=None, currentFile="", runNumber=None, dataLength=None
             nAttempted   -= 1
             skippedCount += 1
 
-        # except IndexError:
-        #     string     = "Event: %3i   "%i + "-"*15 + "Two clusters/ROIs not found" + "-"*15
-        #     nAttempted -= 1
-        #     skippedCount += 1
+        except IndexError:
+            string     = "Event: %3i   "%i + "-"*15 + "Two clusters/ROIs not found" + "-"*15
+            nAttempted -= 1
+            skippedCount += 1
 
         if not quiet: print string
         i += 1
@@ -369,13 +385,15 @@ def tVertexData(data, pbar=None, currentFile="", runNumber=None, dataLength=None
 
     # Do some manipulation to the lists and possibly clean it up to get a fit
     diffs        = np.subtract(tVertexZList, genVertexZList)
-    absdiffs     = np.sort(np.absolute(diffs))
+    #absdiffs     = np.sort(np.absolute(diffs))
     oldlen       = len(diffs)
     if oldlen == 0: return np.array([0])                                                            #|-1 is returned for empty array
     #worstPercent = np.percentile(np.absolute(diffs),100-3)                                         #|Extract magnitude of worst estimate
     #worstPercent = absdiffs[int(np.round(0.050 * oldlen))]
-    #diffs        = np.extract(absdiffs < worstPercent, diffs)                                       #|Pull out all the stuff past 2mm error
-    diffs = np.extract(np.absolute(diffs) < 1.5, diffs)
+    #diffs        = np.extract(absdiffs < worstPercent, diffs)                                      #|Pull out all the stuff past 2mm error
+    #trimmedDiffs = np.extract(np.absolute(diffs) < 1.5, diffs)
+    #invariantMassList = np.extract(np.absolute(diffs) < 1.5, invariantMassList)
+
 
     if not quiet: 
         print "Correctly identified %i/%i events in %s." % \
@@ -386,9 +404,12 @@ def tVertexData(data, pbar=None, currentFile="", runNumber=None, dataLength=None
         print "Processed %i/%i events (%.2f%%)." % \
                 (nAttempted, dataLength, 100.0*float(nAttempted)/dataLength)
 
-    if plotData:
+    if errorPlot:
         Plotter.tVertexErrorHist(10*diffs, len(diffs), title=plotTitle, 
-                                 ranges=[-15,15], quiet=False)
+                                 ranges=[-40,40], quiet=False)
+
+    if invMassVsError:
+        Plotter.invariantMassErrorPlot(np.absolute(diffs), invariantMassList)
 
     if returnDiffs:
         return diffs 
@@ -426,14 +447,14 @@ def energyResolution((directory, f, threadID)):
     data          = timeSmearing(data, smearingValue)
     pbar.finish()
     name          = "{0:22s} &count&: ".format(str(f))
-    en            = f.split("_")[-1].split(".")[0]
+    # en            = f.split("_")[-1].split(".")[0]
     pbar          = progressbar(name, len(data) + 1, fd=writer)
     pbar.start()
     diffs         = tVertexData(data, pbar=pbar, quiet=True)
     pbar.finish()
     outfile       = os.path.expanduser("Data/Processed/50ps/50ps"+str(f[:-4]) + "_tVertexed.npy")
     np.save(outfile, np.multiply(10,diffs))
-    #print "Done."
+    # print "Done."
 
 def singleThreadEnergyResolution(directory, files):
     '''Singly-processed function for analysing resolution as a function of energy.'''
@@ -454,17 +475,62 @@ def singleThreadEnergyResolution(directory, files):
         pbar.finish() 
         print "Finished; closing file %s.\n" % f
 
+def roiEnergyAnalysis(data):
+    '''Troubleshooting function, compares the observed sum energy in an ROI to the genEnergy''' 
+    genEnergies = [] 
+    sumEnergies = []
+    pbar = progressbar("Processing event &count&:", len(data)+1)
+    pbar.start()
+    count = 0
+    for event in data:
+        genEnergy = event[2]['getpt'] * np.cosh(event[2]['geneta'])         
+        for i in range(len(genEnergy)):
+            clustersIndices = np.compress(event[1]['ROI'] == i, event[1]['clusterID'], axis=0)  #|Only take clusters corresponding to right ROI
+            clusterEnergies = []
+            for clusterID in clustersIndices:                                                   #|Only take hits corresponding to correct cluster
+                hits = np.compress(event[0]['clusterID'] == clusterID, event[0], axis=0) 
+                energies = hits['en'] 
+                for energy in energies: 
+                    clusterEnergies.append(energy) #|Add the energy to the cluster energies
+            ROIEnergy = np.sum(clusterEnergies)
+            # Append to original lists
+            genEnergies.append(genEnergy[i])
+            sumEnergies.append(ROIEnergy)
+        pbar.update(count)
+        count += 1
+    pbar.finish()
+    # np.save("sums.npy", sumEnergies)
+    # np.save("gens.npy", genEnergies)
+    # Plot it
+    Plotter.sumEnergyVsGenEnergy(sumEnergies, genEnergies) 
+
+
+
 
 if __name__ == '__main__':  
+    print "Loading a lot of shit, may take a minute..."
     #timeSmearingTest()
 
-    data0 = np.load(os.path.expanduser("Data/Hgg_All.npy"))
-    data = HggFilter(data0)
-    #data = np.load("Data/500GeVPhoton.npy")
+    #data0 = np.load(os.path.expanduser("Data/Hgg_All.npy"))
+    #data = HggFilter(data0)
+
+    #Plotter.invariantMassDistribution(data)
+
+
+    #data = gammaGunFilter(np.load("Data/500GeVPhoton.npy"))
+
+    # data = gammaGunFilter(np.load(os.path.expanduser(
+    #            "~/work/public/Events_22_All_Processed/CombinedArray.npy")))
+    # roiEnergyAnalysis(data)
+
     #tVertexData(data, plotData=True)
     #data = np.load(os.path.expanduser("Data/Events_211_2.npy"))
-    tVertexData(data, plotData = True, 
-       plotTitle="tVertexed $z$ - genVertex $z$ for $H->\gamma\gamma$", dataLength=len(data0))
+
+    # tVertexData(data, errorPlot = True, 
+    #   plotTitle="tVertexed $z$ - genVertex $z$ for $H\\rightarrow\gamma\gamma$", dataLength=len(data), invMassVsError=False)
+    
+    #Plotter.showerAnimator(data[6][0], 1, "", frames=5, clusterID=0)
+
     #for i in range(4):
         #Plotter.showerAnimator(data[72][0], 72+i/10.0, "Hgg Clusters", clusterID=i)
     #    print data[72,1]['en']
@@ -485,6 +551,10 @@ if __name__ == '__main__':
     #     #     energyResolution((directory, files[i], i))
 
     #raw_input("Operation completed\nPress enter to return to the terminal.")
+
+    gens = np.load("Data/gens.npy")
+    sums = np.load("Data/sums.npy")
+    Plotter.sumEnergyVsGenEnergy(sums, gens)
 
 
 

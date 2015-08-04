@@ -3,15 +3,18 @@
 import os, sys
 import numpy as np 
 
-combineList = sys.argv[2:]
-print "Processing array %s..." % sys.argv[1]
-combinedArray = np.load(sys.argv[1])
-#combinedArray = []
-for item in combineList:
-	print "Appending array %s..." % item
-	newData = np.load(item)
-	combinedArray = np.concatenate((combinedArray, newData))
-	#combinedArray.append(np.load(item))
+# combineList = sys.argv[2:]
+combineDir = sys.argv[1]
+path = os.path.expanduser(combineDir)
+combineList = [path+f for f in os.listdir(path) if str(f).endswith(".npy")]
+combinedArray = np.load(combineList[0])
+for i in range(1, len(combineList)):
+	print "Appending array %s..." % combineList[i]
+	newData = np.load(combineList[i])
+	if newData.size > 0:
+		combinedArray = np.concatenate((combinedArray, newData))
+	else:
+		print "Array is empty, skipping."
 
 print "Writing combined array..."
-np.save("CombinedArray.npy", combinedArray)
+np.save("CombinedArray.npy", combinedArray) 
