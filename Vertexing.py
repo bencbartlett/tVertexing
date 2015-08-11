@@ -24,6 +24,7 @@ import os, sys
 from Libraries.FastProgressBar import progressbar
 from multiprocessing import Pool
 from ExternalLibraries.blessings import Terminal
+from scipy.optimize import minimize
 term = Terminal()
 
 warnings.simplefilter("error") 
@@ -49,11 +50,13 @@ def timingCorrection():
     '''Similar to cedric's timing correction stuff for time of arrival. Might not be necessary.'''
     pass
 
+
 def minimizeVertex():
     '''Runs a minimization procedure similar to the one in Sepehr's algorithm on a set of two
     clusters to try to estimate the interaction vertex. This takes the two arrival times of the
     clusters as arguments as computed in the getArrival() function.'''
     pass
+
 
 def timeSmearing(data, sigma):
     '''Simulates time smearing in the arrival times of the data. Takes data and smearing sigma
@@ -64,6 +67,7 @@ def timeSmearing(data, sigma):
     for event in data:
         event[0]['tofT'] = np.random.normal(event[0]['tofT'], float(sigma)/1000)                    #|Smear time-of-flight corrected data along a Gaussian
     return data
+
 
 def twoVertex(hit1, hit2):
     '''Simple vertex finder for a two-photon system. Inherits first interaction xyzt location.'''
@@ -97,6 +101,7 @@ def twoVertex(hit1, hit2):
                      t2 - np.sqrt(x2**2 + y2**2 + (z2-solnZ)**2)/c])
     return [solnZ, solnT, soln1, soln2, error]
 
+
 def XYZtoEtaPhi(xyz):
     '''Convert xyz coordinates to an eta-phi map'''
     x, y, z = xyz 
@@ -104,6 +109,7 @@ def XYZtoEtaPhi(xyz):
     theta = np.arctan2(np.sqrt(x**2 + y**2), z)
     eta = -np.log(np.tan(theta/2)) 
     return eta, phi
+
 
 def getClusterArrivalTimes(RecHits, clusterID):
     '''
@@ -119,6 +125,7 @@ def getClusterArrivalTimes(RecHits, clusterID):
     # arrivalEnergies = np.extract(extractMask, RecHits['en'])
     return np.mean(arrivalTimes)
     #return np.dot(arrivalTimes,arrivalEnergies)/np.sum(arrivalEnergies)
+
 
 def getClusterXYZ(RecHits, clusterID):
     '''
@@ -136,7 +143,7 @@ def getClusterXYZ(RecHits, clusterID):
     z = np.extract(extractMask, RecHits['z'])
     E = np.extract(extractMask, RecHits['en'])
 
-    #return (np.mean(x), np.mean(y), np.mean(z))                                                    #|Flat average
+    return (np.mean(x), np.mean(y), np.mean(z))                                                     #|Flat average
 
     # Energy weight
     w0 = 7                                                                                          #|Arbitrary weighting term that works well, as found by Geoffrey Monet
@@ -148,6 +155,7 @@ def getClusterXYZ(RecHits, clusterID):
                   np.dot(z,Eweight)/np.sum(Eweight))                                                #|Weighted average
 
     return xw, yw, zw
+
 
 def getClusterPointer(RecHits, center, clusterID, quiet=True):
     '''
@@ -171,31 +179,41 @@ def getClusterPointer(RecHits, center, clusterID, quiet=True):
     if not quiet:
         pass
     return pointerVector/np.linalg.norm(pointerVector)
-
-def regressClusterPointer(hits, clusterID, quiet=True):
-    '''Performs a linear regression in x,y to get vertex pointer.'''
-    pass
     
 
 def pVertexPCA(event, cID):
     '''
     Gets cluster pointing vector from internal axis variables and estimates the vertex.
     '''
-    # pVertexX = event[1]['centerX'][cID] / event[1]['axisX'][cID] * \
-    #            event[1]['centerZ'][cID] / np.linalg.norm([event[1]['centerX'][cID], \
-    #            event[1]['centerY'][cID], event[1]['centerZ'][cID]]) - \
-    #            event[1]['centerZ'][cID]
-    # pVertexY = event[1]['centerY'][cID] / event[1]['axisY'][cID] * \
-    #            event[1]['centerZ'][cID] / np.linalg.norm([event[1]['centerX'][cID], \
-    #            event[1]['centerY'][cID], event[1]['centerZ'][cID]]) - \
-    #            event[1]['centerZ'][cID]
     pVertexX = event[1]['centerX'][cID] / event[1]['axisX'][cID] * event[1]['axisZ'][cID] - \
-               event[1]['centerZ'][cID]
+               event[1]['centerZ'][cID] 
     pVertexY = event[1]['centerY'][cID] / event[1]['axisY'][cID] * event[1]['axisZ'][cID] - \
                event[1]['centerZ'][cID]
     pVertexZ = np.average([pVertexX, pVertexY], 
                weights=np.absolute([event[1]['centerX'][cID], event[1]['centerY'][cID]]))
     return pVertexZ, pVertexY, pVertexX
+
+
+def pVertex(x, y, z, t): 
+    '''
+    Regresses x, y, z, and t using a nonlinear least squares method to solve for the interaction 
+    vertex of a single cluster.
+    ''' 
+    xfit = lambda p, t: c * np.sin(p[0]) * (t-1.0) * np.sin(p[1])                                   #|Offset of 1 nanosecond due to digitizer reasons I don't fully understand, but whatevs
+    yfit = lambda p, t: c * np.sin(p[0]) * (t-1.0) * np.cos(p[1])
+    zfit = lambda p, t: c * np.cos(p[0]) * (t-1.0) + p[2]
+    def err(p, x, y, z, t):                                                                         #|Error function for least squares
+        return np.sum(np.square(xfit(p,t) - x) + np.square(yfit(p,t) - y) + \
+               np.square(zfit(p,t) - z))
+    def errWrap(p):                                                                                 #|Wrapper function for error, used to keep things consistent
+        return err(p,x,y,z,t)
+    theta = np.mean(np.arctan2(np.sqrt(np.square(x) + np.square(y)), z))                            #|Initial guess for theta is where theta for the mean of the clusters is
+    phi = np.mean(np.arctan2(y, x))                                                                 #|Guess phi from the mean
+    z0i = 0.0
+    # t0i = 0.0
+    params = np.array((theta, phi, z0i))#, t0i)) #| Use (t-1.0-p[3]) if including t0
+    result = minimize(errWrap, params.copy(), method='BFGS')
+    return result
 
 
 class fourVector(object):                                                                           #|Energy-momentum four-vector for Higgs filter
@@ -214,6 +232,7 @@ class fourVector(object):                                                       
         self.pz += other.pz
         return self
 
+
 def invariantMass(event):
     '''Get the invariant mass of a system. Used in a comparison of invariant mass vs error.'''
     # Extract data
@@ -231,11 +250,13 @@ def invariantMass(event):
     invmass     = np.sqrt(eventVector.dot(eventVector))
     return invmass
 
+
 def HiggsInvariantMassFilter(event):
     # Return if within variance of Higgs mass
     variance = 10.0
     invmass = invariantMass(event)
     return invmass > HiggsMass - variance and invmass < HiggsMass + variance                        #|Filters for Higgs mass range
+
 
 def ROIEnergySpreadFilter(event):
     '''
@@ -266,15 +287,19 @@ def gammaGunFilter(data, quiet=True):
                            data, axis=0)                                                            #|Require an eta separation of opposite endcaps to prevent high errors
     return data
 
-def tVertexData(data, pbar=None, currentFile="", runNumber=None, dataLength=None,
+
+def vertexData(data, pbar=None, currentFile="", runNumber=None, dataLength=None,
                       errorPlot=False, plotTitle=None, quiet=False, returnDiffs=True, 
                       invMassVsError=False):
-    '''Script for vertexing a large set of events.'''
+    '''Apply the tVertexing/pVertexing algorithm to a large number of events.'''
     if invMassVsError: returnDiffs = False
     i                 = 0
     skippedCount      = 0                                                                           #|Number of skipped events
     incorrectCount    = 0                                                                           #|Number of incorrect vertex predictions
-    tVertexZList      = []                                                                          #|List of calculated vertices
+    tVertexZList      = []                                                                          #|List of tVertexed vertices
+    pVertexZList      = []                                                                          #|List of pVertexed vertices
+    pVertex0List      = []
+    pVertex1List      = []
     genVertexZList    = []                                                                          #|List of actual vertices
     correctVertexList = []
     invariantMassList = []
@@ -299,30 +324,9 @@ def tVertexData(data, pbar=None, currentFile="", runNumber=None, dataLength=None
             c1x,c1y,c1z  = getClusterXYZ(event[0], c1ID)
             cluster0Hits = [c0x, c0y, c0z, c0t]                                                     #|Package together for twoVertex() function
             cluster1Hits = [c1x, c1y, c1z, c1t]
-            v0x,v0y,v0z  = getClusterPointer(event[0], [c0x,c0y,c0z], c0ID, quiet=False)
-            v1x,v1y,v1z  = getClusterPointer(event[0], [c1x,c1y,c1z], c1ID, quiet=False)
-            genVertexZ   = event[4]['z'][0]
+            genVertexZ   = event[4]['z'][0] #|Generator level "true" vertices
 
-            # Experimental - estimate vertex from pointing information
-            # # pVertexZ0, pVertexY0, pVertexX0 = pVertexPCA(event, c0ID)
-            # # pVertexZ1, pVertexY1, pVertexX1 = pVertexPCA(event, c1ID)
-
-            # # pVertexX0    = c0x/v0x * c0z/np.linalg.norm([c0x,c0y,c0z]) - c0z
-            # # pVertexY0    = c0y/v0y * c0z/np.linalg.norm([c0x,c0y,c0z]) - c0z
-            # # pVertexX1    = c1x/v1x * c1z/np.linalg.norm([c1x,c1y,c1z]) - c1z
-            # # pVertexY1    = c1y/v1y * c1z/np.linalg.norm([c1x,c1y,c1z]) - c1z
-
-            # pVertexX0    = c0x/v0x * v0z - c0z
-            # pVertexY0    = c0y/v0y * v0z - c0z
-            # pVertexX1    = c1x/v1x * v1z - c1z
-            # pVertexY1    = c1y/v1y * v1z - c1z
-
-            # pVertexZ0    = np.average([pVertexX0, pVertexY0], weights=np.absolute([c0x, c0y]))
-            # pVertexZ1    = np.average([pVertexX1, pVertexY1], weights=np.absolute([c1x, c1y]))
-
-            # pVertexZ     = np.mean([pVertexZ0, pVertexZ1])
-
-            # Do calculations
+            # tVertexing
             vertices     = twoVertex(cluster0Hits, cluster1Hits)
             tVertexZ     = vertices[0]                                                              #|Optimal solution 
             soln1, soln2 = vertices[2:4]                                                            #|Pass both solutions to compare
@@ -334,9 +338,26 @@ def tVertexData(data, pbar=None, currentFile="", runNumber=None, dataLength=None
                 if not quiet: print ">> Skipped!"
                 continue                                                                            #|Get rid of the ~3sigma solutions that are probably errors.
 
-            # Append to list and compare
-            errorZ = np.absolute(tVertexZ-genVertexZ)
+            # pVertexing
+            c0hits       = np.compress(np.logical_and(
+                                event[0]['clusterID']==c0ID, event[0]['t']>0), event[0], axis=0)
+            c1hits       = np.compress(np.logical_and(
+                                event[0]['clusterID']==c1ID, event[0]['t']>0), event[0], axis=0)
+            x0,y0,z0,t0  = c0hits['x'], c0hits['y'], c0hits['z'], c0hits['tofT']
+            x1,y1,z1,t1  = c1hits['x'], c1hits['y'], c1hits['z'], c1hits['tofT']
+            # pVertex0, pVertex0t = pVertex(x0,y0,z0,t0)['x'][2:]
+            # pVertex1, pVertex1t = pVertex(x1,y1,z1,t1)['x'][2:]
+            pVertex0 = pVertex(x0,y0,z0,t0)['x'][2]
+            pVertex1 = pVertex(x1,y1,z1,t1)['x'][2]
+            pVertexZ = np.mean((pVertex0, pVertex1))
+
+            # Append to lists
+            tVertexError = np.absolute(tVertexZ-genVertexZ)
+            pVertexError = np.absolute(pVertexZ - genVertexZ)
             tVertexZList.append(tVertexZ)
+            pVertex0List.append(pVertex0)
+            pVertex1List.append(pVertex1)
+            pVertexZList.append(pVertexZ)
             genVertexZList.append(genVertexZ)
             invariantMassList.append(invariantMass(event))
 
@@ -344,20 +365,24 @@ def tVertexData(data, pbar=None, currentFile="", runNumber=None, dataLength=None
             if not quiet:
                 string = "Event: %3i  |  NumClusters: %2i  |  NumROIs: %2i  |  " \
                         % (i,len(event[1]), len(event[2])) 
-                string += "tVertexZ: {0:10.5f}cm  |  genVertexZ:{1:10.5f}cm  |  Error:{2:>9.5f}cm"\
-                        .format(tVertexZ, genVertexZ, errorZ)
-                # string += "  |  pVA:{2:>9.2f}cm  |  pVertex Error:{3:>9.2f}cm"\
-                #         .format(pVertexZ0, pVertexZ1 ,pVertexZ,pVertexZ - genVertexZ)
-                if np.absolute(tVertexZ-genVertexZ) < .001: string += "<"+"-"*15                    #|Points out very good fits
-                elif np.absolute(tVertexZ-genVertexZ) < .01: string += "<"+"-"*7
+                string += "tVertexZ: {0:9.5f}cm  |  genVertexZ:{1:9.5f}cm  |  Error:{2:>9.5f}cm"\
+                        .format(tVertexZ, genVertexZ, tVertexError)
+                string += "  |  pV0:{0:>9.5f}cm  |  pV1:{1:>9.5f}cm  |  pVertex Error:{2:>9.5f}cm"\
+                        .format(pVertex0, pVertex1, pVertexError)
+                string += "  |  tV-pV:{0:>9.5f}cm"\
+                        .format(np.absolute(tVertexZ-pVertexZ))
+                # string += "  |  pV0t:{0:>9.2f}ns  |  pV1t:{1:>9.2f}ns"\
+                #         .format(pVertex0t, pVertex1t)        
+                if np.absolute(tVertexZ-genVertexZ) < .001:  string += "<"+"-"*7                     #|Points out very good fits
+                elif np.absolute(tVertexZ-genVertexZ) < .01: string += "<"+"-"*3
 
             # Test for incorrectly identified vertices
-            if np.absolute(soln1-genVertexZ) < errorZ:
+            if np.absolute(soln1-genVertexZ) < tVertexError:
                 incorrectCount += 1
                 if not quiet:
                     string += "<-- Incorrect choice of point. Correct: %.5fcm with error %.5fcm." \
                             % (soln1, np.absolute(soln1-genVertexZ))
-            elif np.absolute(soln2-genVertexZ) < errorZ:
+            elif np.absolute(soln2-genVertexZ) < tVertexError:
                 incorrectCount +=1
                 if not quiet:
                     string += "<-- Incorrect choice of point. Correct: %.5fcm with error %.5fcm." \
@@ -369,31 +394,33 @@ def tVertexData(data, pbar=None, currentFile="", runNumber=None, dataLength=None
             string        = ">> Runtime warning, skipping this event..."
             nAttempted   -= 1
             skippedCount += 1
-
-        except IndexError:
-            string     = "Event: %3i   "%i + "-"*15 + "Two clusters/ROIs not found" + "-"*15
-            nAttempted -= 1
-            skippedCount += 1
+        # except IndexError:
+        #     string     = "Event: %3i   "%i + "-"*15 + "Two clusters/ROIs not found" + "-"*15
+        #     nAttempted -= 1
+        #     skippedCount += 1
 
         if not quiet: print string
         i += 1
 
+        # Update progressbar
         if runNumber != None and pbar != None:
             pbar.update(ldata*runNumber + i) 
         elif pbar!=None:
             pbar.update(i)
 
     # Do some manipulation to the lists and possibly clean it up to get a fit
-    diffs        = np.subtract(tVertexZList, genVertexZList)
-    #absdiffs     = np.sort(np.absolute(diffs))
-    oldlen       = len(diffs)
+    diffs    = np.subtract(tVertexZList, genVertexZList)
+    pDiffs   = np.subtract(pVertexZList, genVertexZList)
+    pDiffs0  = np.subtract(pVertex0List, genVertexZList)
+    pDiffs1  = np.subtract(pVertex1List, genVertexZList)
+    oldlen   = len(diffs)
     if oldlen == 0: return np.array([0])                                                            #|-1 is returned for empty array
-    #worstPercent = np.percentile(np.absolute(diffs),100-3)                                         #|Extract magnitude of worst estimate
-    #worstPercent = absdiffs[int(np.round(0.050 * oldlen))]
-    #diffs        = np.extract(absdiffs < worstPercent, diffs)                                      #|Pull out all the stuff past 2mm error
-    #trimmedDiffs = np.extract(np.absolute(diffs) < 1.5, diffs)
+    # Extract worst x% of events to improve fitting
+    diffs    = np.extract(np.absolute(diffs) < np.percentile(np.absolute(diffs), 99.0), diffs)  #|np.percentile() doesn't exist in lxplus numpy. Remove this if using there.
+    pDiffs   = np.extract(np.absolute(pDiffs) < np.percentile(np.absolute(pDiffs), 99.0), pDiffs)
+    pDiffs0  = np.extract(np.absolute(pDiffs0) < np.percentile(np.absolute(pDiffs0), 99.0), pDiffs0)
+    pDiffs1  = np.extract(np.absolute(pDiffs1) < np.percentile(np.absolute(pDiffs1), 99.0), pDiffs1)
     #invariantMassList = np.extract(np.absolute(diffs) < 1.5, invariantMassList)
-
 
     if not quiet: 
         print "Correctly identified %i/%i events in %s." % \
@@ -406,7 +433,16 @@ def tVertexData(data, pbar=None, currentFile="", runNumber=None, dataLength=None
 
     if errorPlot:
         Plotter.tVertexErrorHist(10*diffs, len(diffs), title=plotTitle, 
-                                 ranges=[-40,40], quiet=False)
+                                 ranges=[-7,7], quiet=False)
+        Plotter.tVertexErrorHist(10*pDiffs, len(pDiffs), 
+                                 title="pVertexed $z$ - genVertex $z$ for 500GeV $\gamma$-gun", 
+                                 ranges=[-300,300], quiet=False)
+        Plotter.tVertexErrorHist(10*pDiffs0, len(pDiffs0), 
+                                 title="pVertexed $z$ - genVertex $z$ for 500GeV $\gamma$-gun (C0)", 
+                                 ranges=[-300,300], quiet=False)
+        Plotter.tVertexErrorHist(10*pDiffs1, len(pDiffs1), 
+                                 title="pVertexed $z$ - genVertex $z$ for 500GeV $\gamma$-gun (C1)", 
+                                 ranges=[-300,300], quiet=False)
 
     if invMassVsError:
         Plotter.invariantMassErrorPlot(np.absolute(diffs), invariantMassList)
@@ -426,7 +462,7 @@ def timeSmearingTest():
     pbar.start()
     for smearingVal in np.linspace(0,50,res):
         data           = np.load("Data/500GeVPhoton.npy")                                           #|Quick and dirty reload, numpy was doing funky shit
-        diffs          = tVertexData(timeSmearing(data, smearingVal), runNumber=num, pbar=pbar, quiet=True)
+        diffs          = vertexData(timeSmearing(data, smearingVal), runNumber=num, pbar=pbar, quiet=True)
         diffsList      = np.append(diffsList, diffs)
         smearingValues = np.append(smearingValues, np.repeat(smearingVal, len(diffs)))    
         num            += 1
@@ -450,11 +486,12 @@ def energyResolution((directory, f, threadID)):
     # en            = f.split("_")[-1].split(".")[0]
     pbar          = progressbar(name, len(data) + 1, fd=writer)
     pbar.start()
-    diffs         = tVertexData(data, pbar=pbar, quiet=True)
+    diffs         = vertexData(data, pbar=pbar, quiet=True)
     pbar.finish()
     outfile       = os.path.expanduser("Data/Processed/50ps/50ps"+str(f[:-4]) + "_tVertexed.npy")
     np.save(outfile, np.multiply(10,diffs))
     # print "Done."
+
 
 def singleThreadEnergyResolution(directory, files):
     '''Singly-processed function for analysing resolution as a function of energy.'''
@@ -470,10 +507,11 @@ def singleThreadEnergyResolution(directory, files):
         print "Processing %i of %i files..." % (dataSets.index(data), len(dataSets))
         pbar  = progressbar("Computing &count&:", totalLength + 1)
         pbar.start()                         
-        diffs = tVertexData(data, pbar=pbar, quiet=True)  
+        diffs = vertexData(data, pbar=pbar, quiet=True)  
         np.save(directory+str(f[:-5]) + "_tVertexed.npy", np.multiply(10,diffs))
         pbar.finish() 
         print "Finished; closing file %s.\n" % f
+
 
 def roiEnergyAnalysis(data):
     '''Troubleshooting function, compares the observed sum energy in an ROI to the genEnergy''' 
@@ -485,13 +523,13 @@ def roiEnergyAnalysis(data):
     for event in data:
         genEnergy = event[2]['getpt'] * np.cosh(event[2]['geneta'])         
         for i in range(len(genEnergy)):
-            clustersIndices = np.compress(event[1]['ROI'] == i, event[1]['clusterID'], axis=0)  #|Only take clusters corresponding to right ROI
+            clustersIndices = np.compress(event[1]['ROI'] == i, event[1]['clusterID'], axis=0)      #|Only take clusters corresponding to right ROI
             clusterEnergies = []
-            for clusterID in clustersIndices:                                                   #|Only take hits corresponding to correct cluster
+            for clusterID in clustersIndices:                                                       #|Only take hits corresponding to correct cluster
                 hits = np.compress(event[0]['clusterID'] == clusterID, event[0], axis=0) 
                 energies = hits['en'] 
                 for energy in energies: 
-                    clusterEnergies.append(energy) #|Add the energy to the cluster energies
+                    clusterEnergies.append(energy)                                                  #|Add the energy to the cluster energies
             ROIEnergy = np.sum(clusterEnergies)
             # Append to original lists
             genEnergies.append(genEnergy[i])
@@ -505,8 +543,6 @@ def roiEnergyAnalysis(data):
     Plotter.sumEnergyVsGenEnergy(sumEnergies, genEnergies) 
 
 
-
-
 if __name__ == '__main__':  
     print "Loading a lot of shit, may take a minute..."
     #timeSmearingTest()
@@ -517,17 +553,18 @@ if __name__ == '__main__':
     #Plotter.invariantMassDistribution(data)
 
 
-    #data = gammaGunFilter(np.load("Data/500GeVPhoton.npy"))
+    data = gammaGunFilter(np.load("Data/500GeVPhoton.npy"))
 
     # data = gammaGunFilter(np.load(os.path.expanduser(
     #            "~/work/public/Events_22_All_Processed/CombinedArray.npy")))
     # roiEnergyAnalysis(data)
 
-    #tVertexData(data, plotData=True)
+    #vertexData(data, plotData=True)
     #data = np.load(os.path.expanduser("Data/Events_211_2.npy"))
 
-    # tVertexData(data, errorPlot = True, 
-    #   plotTitle="tVertexed $z$ - genVertex $z$ for $H\\rightarrow\gamma\gamma$", dataLength=len(data), invMassVsError=False)
+    vertexData(data, errorPlot = True, 
+        plotTitle="tVertexed $z$ - genVertex $z$ for 500GeV $\gamma$-gun", 
+        dataLength=len(data), invMassVsError=False)
     
     #Plotter.showerAnimator(data[6][0], 1, "", frames=5, clusterID=0)
 
@@ -552,9 +589,19 @@ if __name__ == '__main__':
 
     #raw_input("Operation completed\nPress enter to return to the terminal.")
 
-    gens = np.load("Data/gens.npy")
-    sums = np.load("Data/sums.npy")
-    Plotter.sumEnergyVsGenEnergy(sums, gens)
+    # gens = np.load("Data/gens.npy")
+    # sums = np.load("Data/sums.npy")
+    # Plotter.sumEnergyVsGenEnergy(sums, gens)
+
+
+################################################################################################
+# Todo:
+# Make invariant mass filter that looks over all clusters and picks the one with
+#   invmass closest to Higgs mass.
+
+
+
+
 
 
 

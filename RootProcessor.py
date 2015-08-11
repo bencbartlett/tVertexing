@@ -303,7 +303,7 @@ def process((f, outdir, showProgress, threadID, quiet)):
 		outArray.append(eventArray)                                                                 #|Converts to a 2D numpy structured array indexed by event number
 		if showProgress: pbar.update(i)                                                             #|Update progressbar
 		if (not showProgress) and (i % 100 == 0) and (not quiet): 
-			print "Thread %i >> Processed %i of %i events." % (threadNo, i, numentries)             #|In the case this is being multiprocessed, progressbar doesn't work well, so just print the stuff.
+			print "Thread %i >> Processed %i of %i events." % (threadID, i, numentries)             #|In the case this is being multiprocessed, progressbar doesn't work well, so just print the stuff.
 
 	# Finish up and save array to file
 	if showProgress: pbar.finish()

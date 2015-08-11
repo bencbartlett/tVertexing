@@ -171,7 +171,13 @@ def showerAnimator(hits, eventNo, title, clusterID=-1, delete=False, frames=30, 
     if delete:
         shutil.rmtree(path+"/frames")
 
-
+def XYZtoEtaPhi(xyz):
+    '''Convert xyz coordinates to an eta-phi map'''
+    x, y, z = xyz 
+    phi     = np.arctan2(y, x)
+    theta   = np.arctan2(np.sqrt(x**2 + y**2), z)
+    eta     = -np.log(np.tan(theta/2)) 
+    return eta, phi
 
 def layerVarianceFrame(enWeightedEtaPhi, etaPhi, frameNo, center, rng=None, maxE=1.0,
                        xbins=30, ybins=30, numEvents=1, saveAs=None):
@@ -270,16 +276,6 @@ def layerVarianceFrame(enWeightedEtaPhi, etaPhi, frameNo, center, rng=None, maxE
     else:
         plt.show()
     plt.clf()
-
-
-def XYZtoEtaPhi(xyz):
-    '''Convert xyz coordinates to an eta-phi map'''
-    x, y, z = xyz 
-    phi     = np.arctan2(y, x)
-    theta   = np.arctan2(np.sqrt(x**2 + y**2), z)
-    eta     = -np.log(np.tan(theta/2)) 
-    return eta, phi
-
 
 def layerVarianceAnalysis(data, eventNo, title, mode=None, clusterID=0, rng=None, endLoop=0,
                                                 numEvents=1, delete=False, cumulative=False):
@@ -430,12 +426,10 @@ def tVertexErrorHist(diffs, nEvents, title=None, ranges=None, quiet=True):
     else: 
         ax.set_title(title)
     # Build output and figure text string
-    string =  "$\mu$ = %.3f$\pm$%.3fmm,  $\sigma$ (fit) = %.3fmm \n" % (mu, muerr, sigma)           #|Print out info box 
+    string =  "$\mu$ = %.3f$\pm$%.3fmm, $\sigma_{fitted}$ = %.3fmm \n" % (mu, muerr, sigma)           #|Print out info box 
     string += "68% error magnitude:      {0:>6.3f}mm \n".format(np.percentile(absDiffs, 68.27)) 
     string += "Median error magnitude:   {0:>6.3f}mm \n".format(np.median(absDiffs))
     string += "Mean error magnitude:     {0:>6.3f}mm \n".format(np.mean(absDiffs)) 
-    string += "Maximum error magnitude:  {0:>6.3f}mm \n".format(np.max(absDiffs))
-    string += "Minimum error magnitude:  {0:>6.3f}mm \n".format(np.min(absDiffs))
     # Changing font to look nicer and line up colons
     font = {'family' : 'monospace',
         'weight' : 'bold',
@@ -464,7 +458,8 @@ def tVertexErrorHist2D(diffsList, values):
     plt.show()
 
 
-def tVertexErrorPlot(diffsList, values):
+def smearingBarPlot(diffsList, values):
+    '''Plots a bar chart for median vertexing errors over time smearing values'''
     medians = [np.mean(np.extract(values == i, np.absolute(diffsList))) for i in np.unique(values)]
     occurrences = [len(np.extract(values == i, values)) for i in np.unique(values)]
     pylab.bar(np.unique(values), medians, color='#000088', yerr=medians/np.sqrt(occurrences))
@@ -598,7 +593,7 @@ def sumEnergyHist(sums):
 
 if __name__ == '__main__':                                                                       
     # Test stuff
-    #tVertexErrorPlot(np.load("diffs.npy"), np.load("vals.npy"))
+    # smearingBarPlot(np.load("diffs.npy"), np.load("vals.npy"))
 
 
     # directory    = "Data/Processed/"
